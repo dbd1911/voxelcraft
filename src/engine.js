@@ -624,8 +624,9 @@ export class Engine {
     if (passives < 8 && Math.random() < 0.5) {
       const p = tryPos();
       if (p) {
-        const g = this.world.getBlock(Math.floor(p[0]) , p[3], Math.floor(p[2]));
-        if (g === B.GRASS) {
+        const g = this.world.getBlock(Math.floor(p[0]), p[3], Math.floor(p[2]));
+        const onSand = g === B.SAND, onGrass = g === B.GRASS;
+        if (onGrass || (onSand && Math.random() < 0.45)) {
           const type = ['cow', 'pig', 'sheep'][Math.floor(Math.random() * 3)];
           this._spawnMob(type, p[0], p[1], p[2]);
         }

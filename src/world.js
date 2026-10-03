@@ -261,6 +261,19 @@ export function makeWorld(seed) {
 }
 
 export function findSpawn(w) {
+  // prefer a grassy, above-sea column
+  for (let r = 0; r < 400; r += 6) {
+    for (let a = 0; a < 12; a++) {
+      const ang = a / 12 * Math.PI * 2 + r * 0.37;
+      const x = Math.floor(Math.cos(ang) * r), z = Math.floor(Math.sin(ang) * r);
+      const h = w.heightAt(x, z);
+      if (h <= SEA + 1) continue;
+      if (biomeAt(x, z, w.seed) === 'desert') continue;
+      const top = w.getBlock(x, h, z);
+      if (top === B.GRASS || top === B.SNOW) return [x + 0.5, h + 2.2, z + 0.5];
+    }
+  }
+  // fallback: any land
   for (let r = 0; r < 200; r += 4) {
     const x = Math.floor(Math.sin(r * 12.9898 + w.seed) * r), z = Math.floor(Math.cos(r * 7.233 + w.seed) * r);
     const h = w.heightAt(x, z);
