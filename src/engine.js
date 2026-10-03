@@ -126,7 +126,11 @@ export class Engine {
   _scanAllTorches() {
     for (const k of this.world.chunks.keys()) { const [cx, cz] = k.split(',').map(Number); this._scanTorches(cx, cz); }
   }
-  torchLightAt(x, y, z) { return this.lightGrid ? this.lightGrid.sample(x, y, z) : 0; }
+  torchLightAt(x, y, z) {
+    const s = this._lightCache;
+    if (!s || s.size === 0) return 0;
+    return s.get(Math.floor(x) + ',' + Math.floor(y) + ',' + Math.floor(z)) || 0;
+  }
 
   // BFS torch light. torchPower: list of [x,y,z,level]
   computeTorchLight(list) {
@@ -183,10 +187,12 @@ export class Engine {
       if (!have || have.dirty || !built) wanted.push([dx * dx + dz * dz, cx, cz]);
     }
     wanted.sort((a, b) => a[0] - b[0]);
+    let builtCount = 0;
     for (const [, cx, cz] of wanted) {
-      if (performance.now() - t0 > this.genBudgetMs) break;
+      if (builtCount >= 2 || performance.now() - t0 > this.genBudgetMs) break;
       if (!this.world.peekChunk(cx, cz) || !this._torchesScanned(cx, cz)) this._scanTorches(cx, cz);
       this.mesher.build(cx, cz);
+      builtCount++;
     }
     // unload far chunks
     for (const [k, m] of this.mesher.meshes) {

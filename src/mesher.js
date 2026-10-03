@@ -1,17 +1,18 @@
 // VoxelCraft — chunk mesher: block data -> THREE geometry with baked light + day factor shader.
+// Optimized: per-column cached heightmap/light, direct chunk-array neighbor access.
 import { CHUNK_X, CHUNK_Y, CHUNK_Z, B, BLOCKS } from './blocks.js';
 import { buildAtlas, tileUV } from './textures.js';
 import { clamp } from './noise.js';
 
 const FACES = [
-  { dir: [-1, 0, 0], shade: 0.62, corners: [[0, 1, 0, 0, 1], [0, 0, 0, 0, 0], [0, 1, 1, 1, 1], [0, 0, 1, 1, 0]], texSide: true },
-  { dir: [1, 0, 0], shade: 0.62, corners: [[1, 1, 1, 0, 1], [1, 0, 1, 0, 0], [1, 1, 0, 1, 1], [1, 0, 0, 1, 0]], texSide: true },
-  { dir: [0, -1, 0], shade: 0.5, corners: [[1, 0, 1, 1, 0], [0, 0, 1, 0, 0], [1, 0, 0, 1, 1], [0, 0, 0, 0, 1]], texSide: false },
-  { dir: [0, 1, 0], shade: 1.0, corners: [[0, 1, 1, 1, 1], [1, 1, 1, 0, 1], [0, 1, 0, 1, 0], [1, 1, 0, 0, 0]], texSide: false },
-  { dir: [0, 0, -1], shade: 0.8, corners: [[1, 0, 0, 0, 0], [0, 0, 0, 1, 0], [1, 1, 0, 0, 1], [0, 1, 0, 1, 1]], texSide: true },
-  { dir: [0, 0, 1], shade: 0.8, corners: [[0, 0, 1, 0, 0], [1, 0, 1, 1, 0], [0, 1, 1, 0, 1], [1, 1, 1, 1, 1]], texSide: true },
+  { dir: [-1, 0, 0], shade: 0.62, corners: [[0, 1, 0, 0, 1], [0, 0, 0, 0, 0], [0, 1, 1, 1, 1], [0, 0, 1, 1, 0]] },
+  { dir: [1, 0, 0], shade: 0.62, corners: [[1, 1, 1, 0, 1], [1, 0, 1, 0, 0], [1, 1, 0, 1, 1], [1, 0, 0, 1, 0]] },
+  { dir: [0, -1, 0], shade: 0.5, corners: [[1, 0, 1, 1, 0], [0, 0, 1, 0, 0], [1, 0, 0, 1, 1], [0, 0, 0, 0, 1]] },
+  { dir: [0, 1, 0], shade: 1.0, corners: [[0, 1, 1, 1, 1], [1, 1, 1, 0, 1], [0, 1, 0, 1, 0], [1, 1, 0, 0, 0]] },
+  { dir: [0, 0, -1], shade: 0.8, corners: [[1, 0, 0, 0, 0], [0, 0, 0, 1, 0], [1, 1, 0, 0, 1], [0, 1, 0, 1, 1]] },
+  { dir: [0, 0, 1], shade: 0.8, corners: [[0, 0, 1, 0, 0], [1, 0, 1, 1, 0], [0, 1, 1, 0, 1], [1, 1, 1, 1, 1]] },
 ];
-const CROSS = [ // X-shaped plant quads
+const CROSS = [
   [[0.14, 0, 0.14], [0.86, 0, 0.86], [0.14, 1, 0.14], [0.86, 1, 0.86]],
   [[0.86, 0, 0.14], [0.14, 0, 0.86], [0.86, 1, 0.14], [0.14, 1, 0.86]],
 ];
@@ -30,7 +31,7 @@ void main() {
 }`;
 const FS = `
 uniform sampler2D map;
-uniform float dayFactor;   // 0..1 sky brightness
+uniform float dayFactor;
 uniform float uOpacity;
 uniform vec3 fogColor;
 uniform float fogNear, fogFar;
@@ -43,7 +44,7 @@ void main() {
   vec4 tex = texture2D(map, vUv);
   if (uCutout && tex.a < 0.5) discard;
   float sky = vLight.x * dayFactor;
-  float torch = vLight.y * (0.92 + 0.08 * sin(dayFactor * 40.0)); // subtle torch warmth variation
+  float torch = vLight.y * 0.95;
   float l = max(sky * vShade, torch * vShade);
   l = 0.06 + 0.94 * l;
   vec3 col = tex.rgb * l;
@@ -57,16 +58,13 @@ let materials = null;
 export function getMaterials() {
   if (materials) return materials;
   const atlas = buildAtlas();
-  const mk = (cutout, opacity) => {
-    const m = new THREE.ShaderMaterial({
-      uniforms: {
-        map: { value: atlas.texture }, dayFactor: dayUniform, uOpacity: { value: opacity },
-        fogColor: { value: new THREE.Color(0x9fbfff) }, fogNear: { value: 60 }, fogFar: { value: 140 }, uCutout: { value: cutout },
-      },
-      vertexShader: VS, fragmentShader: FS, transparent: opacity < 1, side: THREE.DoubleSide,
-    });
-    return m;
-  };
+  const mk = (cutout, opacity) => new THREE.ShaderMaterial({
+    uniforms: {
+      map: { value: atlas.texture }, dayFactor: dayUniform, uOpacity: { value: opacity },
+      fogColor: { value: new THREE.Color(0x9fbfff) }, fogNear: { value: 60 }, fogFar: { value: 140 }, uCutout: { value: cutout },
+    },
+    vertexShader: VS, fragmentShader: FS, transparent: opacity < 1, side: THREE.DoubleSide,
+  });
   materials = { solid: mk(true, 1), water: mk(false, 0.72) };
   return materials;
 }
@@ -77,19 +75,27 @@ export function setFog(color, near, far) {
   m.solid.uniforms.fogFar.value = far; m.water.uniforms.fogFar.value = far;
 }
 
-function tileFor(blockId, face) {
-  const t = BLOCKS[blockId].tex;
-  if (!t) return null;
-  if (t.all) return t.all;
-  if (face.dir[1] === 1) return t.top;
-  if (face.dir[1] === -1) return t.bottom || t.side;
-  return t.side;
+// ---- per-block UV cache (built once atlas exists) ----
+let uvCache = null;
+function faceUV(id, dirY) {
+  if (!uvCache) {
+    uvCache = {};
+    for (let i = 1; i < BLOCKS.length; i++) {
+      const t = BLOCKS[i].tex;
+      if (!t) { uvCache[i] = null; continue; }
+      const side = t.all || t.side, top = t.all || t.top, bot = t.all || t.bottom || t.side;
+      uvCache[i] = { top: tileUV(top), side: tileUV(side), bottom: tileUV(bot) };
+    }
+  }
+  const u = uvCache[id];
+  if (!u) return null;
+  return dirY === 1 ? u.top : dirY === -1 ? u.bottom : u.side;
 }
 
 export class ChunkMesher {
   constructor(world, scene) {
     this.world = world; this.scene = scene;
-    this.meshes = new Map(); // key -> {solid, water}
+    this.meshes = new Map();
     getMaterials();
   }
 
@@ -105,29 +111,57 @@ export class ChunkMesher {
   build(cx, cz) {
     const w = this.world;
     const chunk = w.getChunk(cx, cz);
+    // neighbors (also ensures border culling has data)
+    const nXm = w.getChunk(cx - 1, cz), nXp = w.getChunk(cx + 1, cz);
+    const nZm = w.getChunk(cx, cz - 1), nZp = w.getChunk(cx, cz + 1);
     const key = cx + ',' + cz;
     const pos = [], uv = [], light = [], shade = [], idxA = [];
     const wpos = [], wuv = [], wlight = [], wshade = [], widxA = [];
     const x0 = cx * CHUNK_X, z0 = cz * CHUNK_Z;
+    const blocks = chunk.blocks;
+    const CI = (x, y, z) => (y * CHUNK_Z + z) * CHUNK_X + x;
 
-    const pushQuad = (P, U, L, S, Iarr, verts, uvr, li, sh) => {
-      const base = P.length / 3;
-      for (const v of verts) { P.push(v[0], v[1], v[2]); U.push(v[3], v[4]); }
-      for (let i = 0; i < 4; i++) { L.push(li[0], li[1]); S.push(sh, sh, sh, sh); }
-      Iarr.push(base, base + 1, base + 2, base + 2, base + 1, base + 3);
+    // per-column caches
+    const hm = new Int16Array(CHUNK_X * CHUNK_Z);
+    const torchLookup = (x, y, z) => (w.torchLightAt ? w.torchLightAt(x, y, z) : 0);
+    for (let lz = 0; lz < CHUNK_Z; lz++) for (let lx = 0; lx < CHUNK_X; lx++) hm[lz * CHUNK_X + lx] = w.heightAt(x0 + lx, z0 + lz);
+
+    // neighbor-aware block + height access
+    const getB = (lx, y, lz) => {
+      if (y < 0) return B.BEDROCK;
+      if (y >= CHUNK_Y) return B.AIR;
+      if (lx >= 0 && lx < CHUNK_X && lz >= 0 && lz < CHUNK_Z) return blocks[CI(lx, y, lz)];
+      if (lx < 0) return nXm.get(lx + CHUNK_X, y, lz >= 0 && lz < CHUNK_Z ? lz : lz - (lz < 0 ? -CHUNK_Z : CHUNK_Z) * 0);
+      if (lx >= CHUNK_X) return nXp.get(lx - CHUNK_X, y, lz);
+      if (lz < 0) return nZm.get(lx, y, lz + CHUNK_Z);
+      return nZp.get(lx, y, lz - CHUNK_Z);
+    };
+    const getHM = (lx, lz) => {
+      if (lx >= 0 && lx < CHUNK_X && lz >= 0 && lz < CHUNK_Z) return hm[lz * CHUNK_X + lx];
+      return w.heightAt(x0 + lx, z0 + lz);
+    };
+    const skyAt = (lx, y, lz) => {
+      const h = getHM(lx, lz);
+      if (y >= h) { const underwater = (y < 23) ? Math.max(4, 15 - 2 * (23 - y)) : 15; return underwater / 15; }
+      return Math.max(2, 15 - 3 * (h - y)) / 15;
     };
 
-    for (let ly = 0; ly < CHUNK_Y; ly++) for (let lz = 0; lz < CHUNK_Z; lz++) for (let lx = 0; lx < CHUNK_X; lx++) {
-      const id = chunk.get(lx, ly, lz);
+    const pushQuad = (P, U, L, S, Ia, verts, li, sh) => {
+      const base = P.length / 3;
+      for (let i = 0; i < 4; i++) { const v = verts[i]; P.push(v[0], v[1], v[2]); U.push(v[3], v[4]); }
+      for (let i = 0; i < 4; i++) { L.push(li[0], li[1]); S.push(sh, sh, sh, sh); }
+      Ia.push(base, base + 1, base + 2, base + 2, base + 1, base + 3);
+    };
+
+    for (let ly = 1; ly < CHUNK_Y; ly++) for (let lz = 0; lz < CHUNK_Z; lz++) for (let lx = 0; lx < CHUNK_X; lx++) {
+      const id = blocks[CI(lx, ly, lz)];
       if (id === B.AIR) continue;
       const bl = BLOCKS[id];
-      const wx = x0 + lx, wz = z0 + lz;
 
       if (bl.cross) {
-        const uvName = bl.tex.all;
-        const uvr = tileUV(uvName);
-        const sky = w.skyLight(wx, ly, wz) / 15;
-        const torch = w.torchLightAt(wx, ly, wz) / 15;
+        const uvr = faceUV(id, 1);
+        const sky = skyAt(lx, ly, lz);
+        const torch = torchLookup(x0 + lx, ly, z0 + lz) / 15;
         for (const q of CROSS) {
           const verts = [
             [lx + q[0][0], ly + q[0][1], lz + q[0][2], uvr[0], uvr[3]],
@@ -135,33 +169,28 @@ export class ChunkMesher {
             [lx + q[2][0], ly + q[2][1], lz + q[2][2], uvr[0], uvr[1]],
             [lx + q[3][0], ly + q[3][1], lz + q[3][2], uvr[2], uvr[1]],
           ];
-          pushQuad(pos, uv, light, shade, idxA, verts, uvr, [sky, torch], 1.0);
+          pushQuad(pos, uv, light, shade, idxA, verts, [sky, torch], 1.0);
         }
         continue;
       }
 
       const isWater = id === B.WATER;
       for (const face of FACES) {
-        const nx = wx + face.dir[0], ny = ly + face.dir[1], nz = wz + face.dir[2];
-        const nid = (ny < 0 || ny >= CHUNK_Y) ? (ny < 0 ? B.BEDROCK : B.AIR) : w.getBlock(nx, ny, nz);
+        const nx = lx + face.dir[0], ny = ly + face.dir[1], nz = lz + face.dir[2];
+        const nid = getB(nx, ny, nz);
         const nbl = BLOCKS[nid];
         if (isWater) {
           if (nid === B.WATER) continue;
           if (nbl && nbl.opaque) continue;
         } else {
-          if (nid === id) continue;
-          if (nbl && nbl.opaque && !BLOCKS[id].leaves) continue;
-          if (nbl && nbl.opaque && BLOCKS[id].leaves && nid === B.LEAVES) continue;
+          if (nid === id && !bl.leaves && !bl.cross) continue;
+          if (nbl && nbl.opaque && !bl.leaves) continue;
+          if (nid === B.LEAVES && bl.leaves) continue;
         }
-        const uvr = tileUV(tileFor(id, face));
-        // light sampled at the neighbor cell the face looks into
-        let sky, torch;
-        if (ny < 0) { sky = 0; torch = 0; }
-        else {
-          sky = clamp(w.skyLight(nx, ny, nz), 0, 15) / 15;
-          torch = w.torchLightAt(nx, ny, nz) / 15;
-        }
-        const yTop = (isWater && face.dir[1] === 1) ? 0.875 : (isWater ? 0.875 : 1);
+        const uvr = faceUV(id, face.dir[1]);
+        const sky = ny < 0 ? 0 : skyAt(nx, ny, nz);
+        const torch = ny < 0 ? 0 : torchLookup(x0 + nx, ny, z0 + nz) / 15;
+        const yTop = isWater ? 0.875 : 1;
         const verts = face.corners.map(cn => [
           lx + cn[0],
           ly + (cn[1] === 1 ? yTop : 0),
@@ -170,7 +199,7 @@ export class ChunkMesher {
           uvr[1] + (uvr[3] - uvr[1]) * cn[4],
         ]);
         const P = isWater ? wpos : pos, U = isWater ? wuv : uv, L = isWater ? wlight : light, S = isWater ? wshade : shade, Ia = isWater ? widxA : idxA;
-        pushQuad(P, U, L, S, Ia, verts, uvr, [sky, torch], face.shade);
+        pushQuad(P, U, L, S, Ia, verts, [sky, torch], face.shade);
       }
     }
 
@@ -204,7 +233,7 @@ export class ChunkMesher {
     return out;
   }
 
-  meshAt(x, z) { // mesh object containing world pos (for picking debug)
+  meshAt(x, z) {
     const k = Math.floor(x / CHUNK_X) + ',' + Math.floor(z / CHUNK_Z);
     return this.meshes.get(k);
   }
