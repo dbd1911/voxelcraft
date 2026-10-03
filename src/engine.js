@@ -976,7 +976,7 @@ export class GameAPI {
         a.jump = P.inWater ? true : needJump;
         if (i >= path.length || (dh < 0.75 && i === path.length - 1)) {
           a.forward = 0; a.jump = false; this.stopAct();
-          resolve({ ok: true, elapsed: +elapsed.toFixed(1) });
+          resolve({ ok: true, elapsed: +acc.toFixed(1) });
         }
       });
     });
