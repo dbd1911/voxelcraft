@@ -270,7 +270,10 @@ export function findSpawn(w) {
       if (h <= SEA + 1) continue;
       if (biomeAt(x, z, w.seed) === 'desert') continue;
       const top = w.getBlock(x, h, z);
-      if (top === B.GRASS || top === B.SNOW) return [x + 0.5, h + 2.2, z + 0.5];
+      if (top === B.GRASS || top === B.SNOW) {
+        // require 2 clear air blocks above (no trunk/leaves/flower overlapping the spawn)
+        if (w.getBlock(x, h + 1, z) === B.AIR && w.getBlock(x, h + 2, z) === B.AIR) return [x + 0.5, h + 2.2, z + 0.5];
+      }
     }
   }
   // fallback: any land
