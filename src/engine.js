@@ -17,7 +17,7 @@ export class Engine {
     this.world = makeWorld(this.seed);
     // mesher samples engine-computed torch light through the world handle
     this.world.torchLightAt = (x, y, z) => this.torchLightAt(x, y, z);
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', preserveDrawingBuffer: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(75, 1, 0.1, 400);

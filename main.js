@@ -136,6 +136,31 @@ function loop() {
 }
 loop();
 
+// ---- background-tab survival ----
+// rAF pauses in hidden tabs. A silent WebAudio node keeps the timer tier friendly,
+// and a 1 Hz interval fallback keeps the world ticking (with catch-up) while hidden.
+try {
+  const ac = new (window.AudioContext || window.webkitAudioContext)();
+  const g = ac.createGain(); g.gain.value = 0.0001; g.connect(ac.destination);
+  const osc = ac.createOscillator(); osc.frequency.value = 60; osc.connect(g); osc.start();
+  window.__audioKeepalive = ac;
+  document.addEventListener('click', () => { if (ac.state === 'suspended') ac.resume(); }, { once: true });
+} catch (e) { }
+setInterval(() => {
+  if (!document.hidden) return;
+  const now = performance.now();
+  const dt = Math.min(0.2, Math.max(0, (now - last) / 1000));
+  if (dt <= 0 || engine.paused) return;
+  let frames = Math.min(4, Math.ceil(dt / 0.05));
+  for (let i = 0; i < frames; i++) {
+    const fdt = Math.min(0.05, dt / frames);
+    const snap = { agentLocked: input.agentLocked, forward: 0, strafe: 0, jump: false, sprint: false, sneak: false, breaking: false, useEdge: false, lookDX: 0, lookDY: 0, hotbarNext: 0, hotbarPrev: 0, hotbarSel: -1, openCraft: false, openInv: false, pauseEdge: false, toggleFlyEdge: false };
+    engine.frame(fdt, snap);
+    engine.renderLoop(fdt);
+  }
+  last = performance.now();
+}, 1000);
+
 // first-join toast
 setTimeout(() => hud.toast('Click to play · WASD move · G hands off to AI'), 800);
 if (window.__errs && window.__errs.length) hud.toast('⚠ ' + window.__errs.length + ' boot error(s) — see console (F12)', 'warn');
