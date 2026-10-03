@@ -717,13 +717,17 @@ export class GameAPI {
     this._agentMode = true;
     this._inputAgent();
   }
-  _inputAgent() { this._agentInput = this._agentInput || { agentLocked: true, forward: 0, strafe: 0, jump: false, sprint: false, sneak: false, breaking: false, useEdge: false, lookDX: 0, lookDY: 0 }; }
+  _ai() {
+    if (!this._agentInput) this._agentInput = { agentLocked: true, forward: 0, strafe: 0, jump: false, sprint: false, sneak: false, breaking: false, useEdge: false, toggleFlyEdge: false, lookDX: 0, lookDY: 0 };
+    return this._agentInput;
+  }
+  _ensureAgent() { this._ai(); }
+  _inputAgent() { return this._ai(); }
 
   // ---- continuous controls (stateless: act() each frame via hook) ----
   act(fn) {
     // fn(input, engine) called every frame; input is a raw Input-like object
-    this._agentInput = this._agentInput || { agentLocked: true, forward: 0, strafe: 0, jump: false, sprint: false, sneak: false, breaking: false, useEdge: false, toggleFlyEdge: false, lookDX: 0, lookDY: 0 };
-    const inp = this._agentInput;
+    const inp = this._ai();
     this.e.hook.action = (dt) => {
       // reset per-frame one-shots
       const jump = inp.jump; const useEdge = inp.useEdge; const fly = inp.toggleFlyEdge;
@@ -753,7 +757,7 @@ export class GameAPI {
 
   // ---- discrete actions ----
   mine(durationSec = 4) {
-    const a = this._agentInput;
+    const a = this._ai();
     a.breaking = true;
     const t0 = performance.now();
     return new Promise(res => {
@@ -942,7 +946,7 @@ export class GameAPI {
     const t0 = performance.now();
     let i = 1;
     return await new Promise(resolve => {
-      const a = this._agentInput;
+      const a = this._ai();
       a.forward = 0; a.strafe = 0; a.breaking = false;
       this.act((dt) => {
         const elapsed = (performance.now() - t0) / 1000;
@@ -982,7 +986,7 @@ export class GameAPI {
     return await new Promise(res => {
       const P = this.e.player;
       const t0 = performance.now();
-      const a = this._agentInput;
+      const a = this._ai();
       this.act(() => {
         // pick nearest mob in front within reach
         let best = null, bd = 3.2;
@@ -1010,7 +1014,7 @@ export class GameAPI {
   async followMob(type, maxSec = 60) {
     return await new Promise(res => {
       const t0 = performance.now();
-      const a = this._agentInput;
+      const a = this._ai();
       this.act(() => {
         const m = this.e.mobs.find(m => m.type === type && !m.dead);
         if (!m || (performance.now() - t0) / 1000 > maxSec) { a.forward = 0; this.stopAct(); res(m ? 'arrived near' + type : 'no ' + type + ' found'); return; }
