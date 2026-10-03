@@ -127,12 +127,10 @@ export class Player {
     const headWater = isInWater(w, this, EYE);
     this.inWater = inWaterBody; this.headInWater = headWater;
 
-    // ---- movement intent
+    // ---- movement intent (agent input objects carry their own actions; no gating here) ----
     let mx = 0, mz = 0, wantSprint = false, wantJump = false, sneak = false;
-    if (!input.agentLocked) {
-      mx = input.strafe; mz = input.forward;
-      wantSprint = input.sprint; wantJump = input.jump; sneak = input.sneak;
-    }
+    mx = input.strafe; mz = input.forward;
+    wantSprint = input.sprint; wantJump = input.jump; sneak = input.sneak;
     const len = Math.hypot(mx, mz);
     if (len > 1) { mx /= len; mz /= len; }
     const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
