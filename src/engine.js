@@ -1,5 +1,5 @@
 // VoxelCraft — game engine: scene, chunk streaming, lighting, interaction, sim loop, agent API.
-import * as THREE from './three.js';
+import THREE from './three.js';
 import { CHUNK_X, CHUNK_Y, CHUNK_Z, SEA, DAY_LENGTH, B, I, BLOCKS, ITEMS, RECIPES, SMELT, FUEL, canCraft, countItem, miningInfo, itemType } from './blocks.js';
 import { makeWorld, findSpawn, terrainHeight, biomeAt } from './world.js';
 import { buildAtlas, crackTextures, blockTile } from './textures.js';
