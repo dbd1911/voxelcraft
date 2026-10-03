@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>VoxelCraft — browser voxel survival</title>
+<link rel="stylesheet" href="style.css"/>
+<link rel="icon" href="data:,">
+</head>
+<body>
+<canvas id="game-canvas"></canvas>
+<div id="ui-root">
+  <div id="crosshair">+</div>
+
+  <div id="hud">
+    <div id="vignette"></div>
+    <div id="debug" class="hidden"><span id="debug-inline"></span></div>
+    <div id="status-bars">
+      <div id="air-row"><div id="air"></div></div>
+      <div id="hearts"></div>
+      <div id="food"></div>
+    </div>
+    <div id="hotbar"></div>
+    <div id="chatlog"></div>
+    <div id="toast" class="toast"></div>
+    <div id="damage-overlay"></div>
+  </div>
+
+  <!-- Crafting / inventory -->
+  <div id="craft-panel" class="panel hidden">
+    <h3>Crafting <span id="craft-mode-label"></span></h3>
+    <div id="craft-list"></div>
+    <h4>Inventory <span class="hint">(click a backpack row to move it to the hotbar)</span></h4>
+    <div id="inv-grid"></div>
+    <button id="craft-close">Close (C)</button>
+  </div>
+
+  <!-- Furnace -->
+  <div id="furnace-panel" class="panel hidden">
+    <h3>Furnace</h3>
+    <div id="furnace-state"></div>
+    <div id="furnace-io"></div>
+    <div class="row">
+      <button id="furnace-fuel">Add fuel (coal/planks)</button>
+      <button id="furnace-close">Close</button>
+    </div>
+    <p class="hint">Automatically fuels with coal first, then planks. Smelting: iron/gold ore → ingots, raw meat → cooked, sand → glass, cobble → stone.</p>
+  </div>
+
+  <!-- Pause menu -->
+  <div id="pause-menu" class="panel hidden">
+    <h3>VoxelCraft</h3>
+    <button id="btn-resume">Back to game</button>
+    <label class="row">Render distance <input id="render-dist" type="range" min="2" max="8" value="5"/><span id="rd-label">5</span></label>
+    <button id="btn-save">Save world</button>
+    <button id="btn-mode">Game mode: <span id="mode-label">survival</span></button>
+    <button id="btn-new">New world (random seed)</button>
+    <button id="btn-help">Help / controls</button>
+    <p class="hint">Survival autosaves locally every 12s.</p>
+  </div>
+
+  <!-- Help -->
+  <div id="help" class="panel hidden">
+    <h3>Controls</h3>
+    <ul>
+      <li><b>Mouse</b> look · <b>WASD</b> move · <b>Space</b> jump · <b>Shift</b> sprint · <b>Ctrl</b> sneak</li>
+      <li><b>Left click / Q</b> mine (hold) · <b>Right click</b> place/use/eat · <b>1–9 / wheel</b> hotbar</li>
+      <li><b>E or C</b> inventory & crafting · <b>Esc</b> pause · <b>F</b> fly (creative) · <b>R</b> debug · <b>G</b> toggle AI control</li>
+      <li><b>Gamepad</b>: left stick move, right stick look, RT mine, LT place, A jump, Y inventory, X craft, Start pause, L3 sprint toggle, B sneak, D-pad Up fly (creative), LB/RB hotbar</li>
+    </ul>
+    <p>Survive: punch trees → planks → table → tools → mine stone/ore → furnace → cook food. Nights bring zombies, skeletons and spiders. Torches light caves.</p>
+    <button id="help-close">Close</button>
+  </div>
+
+  <!-- Death screen -->
+  <div id="death-screen" class="hidden">
+    <h1>You died!</h1>
+    <div id="death-cause"></div>
+    <button id="btn-respawn">Respawn</button>
+  </div>
+
+  <!-- Agent observability panel -->
+  <div id="agent-panel">
+    <div id="agent-header">
+      <span>🤖 AI AGENT</span>
+      <button id="agent-toggle">▾</button>
+    </div>
+    <div id="agent-body">
+      <div id="agent-status">autonomous agent attaches at window.game (Phase 2)</div>
+      <button id="btn-demo-agent">▶ Run survival demo</button>
+      <pre id="agent-events"></pre>
+      <div class="hint">Console API: window.game.state(), .inventory(), .craft('pick_wood'), .goto(x,z), .mine(), .attack(), .faceTo(x,z), .nearestBlock('wood'), .recipes()</div>
+    </div>
+  </div>
+</div>
+<script type="module" src="main.js"></script>
+</body>
+</html>

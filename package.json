@@ -1,0 +1,12 @@
+{
+  "name": "voxelcraft",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser voxel survival game (Minecraft-like) with a built-in automation API for autonomous AI agents.",
+  "scripts": {
+    "start": "python -m http.server 8770",
+    "serve": "python -m http.server 8770",
+    "test": "node tests/smoke.mjs"
+  }
+}

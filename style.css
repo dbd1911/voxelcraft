@@ -1,0 +1,79 @@
+/* VoxelCraft — Minecraft-flavored UI */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+body { font-family: 'Courier New', monospace; user-select: none; }
+#game-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; cursor: crosshair; }
+.hidden { display: none !important; }
+
+#ui-root { position: fixed; inset: 0; pointer-events: none; }
+#ui-root > * { pointer-events: auto; }
+#hud { position: absolute; inset: 0; pointer-events: none; }
+#hud > * { pointer-events: none; }
+
+#crosshair { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: rgba(255,255,255,0.85); font-size: 22px; font-weight: bold; text-shadow: 0 0 2px #000; pointer-events: none; }
+
+#vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 62%, rgba(0,0,0,0.35) 100%); pointer-events: none; }
+#damage-overlay { position: absolute; inset: 0; background: rgba(255, 0, 0, 0); transition: background 0.1s; pointer-events: none; }
+
+#debug { position: absolute; left: 8px; top: 8px; background: rgba(0,0,0,0.55); color: #e8e8e8; font-size: 13px; padding: 6px 10px; border-radius: 3px; white-space: pre; }
+#debug:not(.hidden) { display: block; }
+
+#status-bars { position: absolute; left: 50%; bottom: 58px; transform: translateX(-50%); width: 366px; }
+#air-row { display: none; justify-content: flex-end; margin-bottom: 2px; }
+#hearts, #food, #air { display: flex; gap: 1px; }
+#air { justify-content: flex-end; }
+.pip { width: 16px; height: 16px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.6); box-shadow: inset 0 -3px 0 rgba(0,0,0,0.25); }
+#hearts { float: left; }
+#food { float: right; }
+
+#hotbar { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); display: flex; gap: 2px; }
+.slot { width: 40px; height: 40px; background: rgba(0,0,0,0.42); border: 2px solid rgba(140,140,140,0.9); position: relative; }
+.slot.sel { border-color: #fff; box-shadow: 0 0 4px rgba(255,255,255,0.7); }
+.slot img { width: 100%; height: 100%; image-rendering: pixelated; }
+.slot b { position: absolute; right: 2px; bottom: 0; color: #fff; font-size: 13px; text-shadow: 1px 1px 0 #000; }
+
+#chatlog { position: absolute; left: 10px; bottom: 90px; color: #fff; font-size: 13px; max-width: 40%; text-shadow: 1px 1px 0 #000; }
+#chatlog div { background: rgba(0,0,0,0.35); padding: 1px 6px; margin-top: 2px; border-radius: 2px; }
+
+.toast { position: absolute; left: 50%; top: 16%; transform: translateX(-50%); background: rgba(0,0,0,0.65); color: #ffe; padding: 8px 18px; border-radius: 4px; font-size: 15px; opacity: 0; transition: opacity 0.3s; border: 1px solid rgba(255,255,255,0.25); }
+.toast.show { opacity: 1; }
+.toast.warn { background: rgba(120,30,20,0.8); color: #ffd; }
+
+.panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); background: #c6c6c6; border: 3px solid #555; border-radius: 4px; padding: 14px 16px; color: #333; min-width: 380px; max-width: 560px; max-height: 82vh; overflow: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.6); }
+.panel h3 { font-size: 17px; margin-bottom: 8px; color: #404040; }
+.panel h4 { margin: 12px 0 6px; font-size: 14px; color: #404040; }
+.panel .hint { font-size: 11px; color: #666; font-weight: normal; }
+.panel button { background: #8b8b8b; border: 2px solid #3f3f3f; color: #fff; text-shadow: 1px 1px 0 #383838; padding: 7px 12px; font-family: inherit; font-size: 13px; cursor: pointer; margin: 4px 6px 4px 0; }
+.panel button:hover { background: #9c9c9c; }
+.panel label.row { display: flex; align-items: center; gap: 8px; font-size: 13px; margin: 6px 0; }
+#craft-list { max-height: 300px; overflow: auto; border: 2px solid #8b8b8b; background: #a5a5a5; }
+.recipe { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-bottom: 1px solid rgba(0,0,0,0.15); font-size: 12px; }
+.recipe.ok { background: rgba(120, 200, 120, 0.25); cursor: pointer; }
+.recipe.ok:hover { background: rgba(120, 220, 120, 0.45); }
+.recipe .rname { min-width: 130px; font-weight: bold; }
+.recipe .rmat { color: #444; flex: 1; }
+.recipe .rneed { color: #a05; font-size: 10px; }
+#inv-grid { display: grid; grid-template-columns: repeat(9, 36px); gap: 2px; margin-top: 4px; }
+#inv-grid .cell { width: 36px; height: 36px; background: #8b8b8b; border: 2px solid #565656; position: relative; }
+#inv-grid .cell img { width: 100%; height: 100%; image-rendering: pixelated; }
+#inv-grid .cell b { position: absolute; right: 1px; bottom: 0; color: #fff; font-size: 11px; text-shadow: 1px 1px 0 #000; }
+#inv-grid .cell.hb { border-color: #2c6bbb; }
+#furnace-state { font-size: 13px; margin: 6px 0; }
+#furnace-io { font-size: 12px; background: #a5a5a5; padding: 6px; border: 2px solid #8b8b8b; }
+
+#pause-menu { display: none; flex-direction: column; }
+#pause-menu button { display: block; width: 100%; margin: 4px 0; text-align: left; }
+
+#death-screen { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(120, 0, 0, 0.5); z-index: 50; color: #fff; }
+#death-screen h1 { font-size: 42px; text-shadow: 2px 2px 0 #300; margin-bottom: 8px; }
+#death-screen button { margin-top: 20px; background: #8b8b8b; border: 2px solid #3f3f3f; color: #fff; padding: 10px 24px; font-family: inherit; font-size: 16px; cursor: pointer; }
+
+#agent-panel { position: absolute; right: 10px; top: 10px; width: 300px; background: rgba(10, 14, 20, 0.82); border: 1px solid rgba(120, 200, 255, 0.4); border-radius: 6px; color: #cfe; font-size: 12px; z-index: 40; }
+#agent-header { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: rgba(40, 80, 120, 0.5); border-radius: 6px 6px 0 0; font-weight: bold; }
+#agent-header button { background: none; border: none; color: #cfe; cursor: pointer; font-size: 13px; }
+#agent-body { padding: 8px 10px; }
+#agent-status { margin-bottom: 6px; color: #aef; white-space: pre-wrap; }
+#btn-demo-agent { background: #2c6bbb; border: none; color: #fff; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-family: inherit; margin-bottom: 6px; }
+#btn-demo-agent:disabled { opacity: 0.5; }
+#agent-events { font-size: 11px; color: #9fd; max-height: 180px; overflow: auto; white-space: pre-wrap; }
+#agent-panel .hint { color: #8cb; font-size: 10px; margin-top: 6px; line-height: 1.5; }
