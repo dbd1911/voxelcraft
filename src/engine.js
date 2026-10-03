@@ -759,10 +759,11 @@ export class GameAPI {
   mine(durationSec = 4) {
     const a = this._ai();
     a.breaking = true;
-    const t0 = performance.now();
     return new Promise(res => {
+      let acc = 0; // sim time, not wall time (tabs can be throttled)
       this.act((dt) => {
-        if ((performance.now() - t0) / 1000 >= durationSec) { a.breaking = false; this.stopAct(); res(true); }
+        acc += dt;
+        if (acc >= durationSec) { a.breaking = false; this.stopAct(); res(true); }
       });
     });
   }
@@ -943,14 +944,14 @@ export class GameAPI {
     let node = goal;
     while (node) { path.unshift(node[0]); node = node[1]; }
     // drive
-    const t0 = performance.now();
     let i = 1;
     return await new Promise(resolve => {
       const a = this._ai();
       a.forward = 0; a.strafe = 0; a.breaking = false;
+      let acc = 0; // sim time
       this.act((dt) => {
-        const elapsed = (performance.now() - t0) / 1000;
-        if (elapsed > maxSec) { a.forward = 0; this.stopAct(); resolve({ ok: false, why: 'timeout at ' + elapsed.toFixed(0) + 's, progress ' + i + '/' + path.length }); return; }
+        acc += dt;
+        if (acc > maxSec) { a.forward = 0; this.stopAct(); resolve({ ok: false, why: 'timeout, progress ' + i + '/' + path.length }); return; }
         if (P.dead) { a.forward = 0; this.stopAct(); resolve({ ok: false, why: 'died en route' }); return; }
         // advance waypoint when close
         while (i < path.length) {
@@ -985,9 +986,10 @@ export class GameAPI {
   async attack() {
     return await new Promise(res => {
       const P = this.e.player;
-      const t0 = performance.now();
+      let acc = 0; // sim time
       const a = this._ai();
-      this.act(() => {
+      this.act((dt) => {
+        acc += dt;
         // pick nearest mob in front within reach
         let best = null, bd = 3.2;
         for (const m of this.e.mobs) {
@@ -1007,17 +1009,18 @@ export class GameAPI {
           P.attackCd = 0.6;
           this.e._logEvent('attack', best.type + ' -> ' + Math.max(0, best.hp) + 'hp');
         }
-        if ((performance.now() - t0) / 1000 > 0.9) { this.stopAct(); res(best ? { hitType: best.dead ? 'killed' : 'hit', type: best.type, hp: Math.max(0, best.hp) } : { hitType: 'none' }); }
+        if (acc > 0.9) { this.stopAct(); res(best ? { hitType: best.dead ? 'killed' : 'hit', type: best.type, hp: Math.max(0, best.hp) } : { hitType: 'none' }); }
       });
     });
   }
   async followMob(type, maxSec = 60) {
     return await new Promise(res => {
-      const t0 = performance.now();
+      let acc = 0; // sim time
       const a = this._ai();
-      this.act(() => {
+      this.act((dt) => {
+        acc += dt;
         const m = this.e.mobs.find(m => m.type === type && !m.dead);
-        if (!m || (performance.now() - t0) / 1000 > maxSec) { a.forward = 0; this.stopAct(); res(m ? 'arrived near' + type : 'no ' + type + ' found'); return; }
+        if (!m || acc > maxSec) { a.forward = 0; this.stopAct(); res(m ? 'arrived near ' + type : 'no ' + type + ' found'); return; }
         this._driveToward(m.x, m.z, a, dt => { }, 2.5);
       });
     });
