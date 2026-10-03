@@ -15,6 +15,8 @@ export class Engine {
     this.canvas = canvas; this.hud = hud; this.on = opts;
     this.seed = (opts.seed ?? (Math.random() * 2 ** 31)) | 0;
     this.world = makeWorld(this.seed);
+    // mesher samples engine-computed torch light through the world handle
+    this.world.torchLightAt = (x, y, z) => this.torchLightAt(x, y, z);
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
     this.scene = new THREE.Scene();
