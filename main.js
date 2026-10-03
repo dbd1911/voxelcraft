@@ -6,6 +6,18 @@ import { runDemoAgent } from './src/agent.js';
 
 const canvas = document.getElementById('game-canvas');
 const qs = new URLSearchParams(location.search);
+// boot error collector (shown in console + kept for diagnostics)
+window.__errs = [];
+window.addEventListener('error', (ev) => {
+  const msg = (ev.message || 'error') + (ev.filename ? ' @ ' + ev.filename.split('/').pop() + ':' + ev.lineno : '');
+  window.__errs.push(msg);
+  console.error('[VoxelCraft]', msg);
+});
+window.addEventListener('unhandledrejection', (ev) => {
+  const msg = 'promise: ' + (ev.reason && ev.reason.message ? ev.reason.message : String(ev.reason));
+  window.__errs.push(msg);
+  console.error('[VoxelCraft]', msg);
+});
 const engine = new Engine(canvas, null, { seed: qs.has('seed') ? +qs.get('seed') : undefined, gameMode: qs.get('mode') || 'survival' });
 const hud = new HUD(engine);
 engine.hud = hud;
@@ -126,3 +138,4 @@ loop();
 
 // first-join toast
 setTimeout(() => hud.toast('Click to play · WASD move · G hands off to AI'), 800);
+if (window.__errs && window.__errs.length) hud.toast('⚠ ' + window.__errs.length + ' boot error(s) — see console (F12)', 'warn');
