@@ -19,6 +19,7 @@ const CROSS = [
 
 const VS = `
 attribute vec2 alight;
+attribute vec3 color;
 varying vec2 vUv;
 varying float vShade;
 varying vec2 vLight;
