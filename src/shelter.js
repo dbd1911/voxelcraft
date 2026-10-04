@@ -72,7 +72,10 @@ export function burrow(engine, onProgress = () => {}) {
   while (P.y > h - DEPTH + 1.4 && waited < 240) { e.frame(1 / 30, AGENT_NEUTRAL()); waited++; }
   if (P.y > h - DEPTH + 1.4) return { ok: false, why: 'player never descended', log };
 
-  // ---- seal the shaft: deterministic placement against a side wall ----
+  // ---- seal the shaft: deterministic geometry, no raycast dependency ----
+  // Find wall cells (solid, adjacent to the shaft column) at the TOP of the shaft; we stand
+  // inside, place against the wall face that borders the shaft's open sky cell.
+  const skyCell = { x: Math.floor(P.x), y: h, z: Math.floor(P.z) }; // top of shaft = open cell
   const sealCandidates = [B.DIRT, B.COBBLE, B.SAND, B.GRAVEL, B.PLANKS, B.STONE, B.LOG];
   let sealSlot = -1, sealId = 0;
   for (let i = 0; i < 36 && sealSlot < 0; i++) {
@@ -83,33 +86,37 @@ export function burrow(engine, onProgress = () => {}) {
   P.sel = sealSlot;
   say('sealing with ' + (BLOCKS_NAME[sealId] || sealId) + ' (slot ' + sealSlot + ')');
 
-  // face the shaft's side wall just above head-height, place onto the face pointing INTO the shaft.
-  // While inside the shaft (P.y < h): look horizontally at a wall cell -> its face toward us is a
-  // shaft-facing surface; useOn() places at hit.face cell = directly overhead if we aim at y=P.y+2
-  const yAim = Math.floor(P.y) + 2; // cell just above head inside a 3-deep shaft
-  const dirs = ['z', 'x'];
+  // We need a SOLID neighbor of the skyCell whose face toward the skyCell is placeable.
+  // Aim exactly at the CENTER of that solid cell: raycast hits its near face; useOn places
+  // at hit.face = the sky cell. Perfect geometry, no scanning.
   let placed = false;
-  for (const axis of dirs) {
-    for (const sign of [1, -1]) {
-      // wall cell adjacent in this direction at our head level
-      const wx = axis === 'x' ? Math.floor(P.x) + sign : Math.floor(P.x);
-      const wz = axis === 'z' ? Math.floor(P.z) + sign : Math.floor(P.z);
-      const wallId = w.getBlock(wx, yAim - 1, wz);
+  const neighbors = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  for (const [dx, dz] of neighbors) {
+    const nx = skyCell.x + dx, nz = skyCell.z + dz;
+    // solid wall block at the sky cell's own level (or one above)
+    for (const wy of [skyCell.y, skyCell.y + 1]) {
+      const wallId = w.getBlock(nx, wy, nz);
       if (!(BLOCKS[wallId] && BLOCKS[wallId].solid)) continue;
-      // aim: horizontal toward that wall, tilted slightly down so the ray meets its inner face
-      P.yaw = axis === 'x'
-        ? (sign > 0 ? -Math.PI / 2 : Math.PI / 2)
-        : (sign > 0 ? Math.PI : 0);
-      P.pitch = -8 * Math.PI / 180;
+      // compute yaw to face (nx,nz) from player, pitch to look at its center height wy+0.5
+      const tx = nx + 0.5 - P.x, tz = nz + 0.5 - P.z;
+      const dx0 = tx, dz0 = tz;
+      const horiz = Math.hypot(dx0, dz0) || 1e-6;
+      const eye = P.eyeY !== undefined ? P.eyeY : P.y + 1.62;
+      const dy = (wy + 0.5) - Math.min(eye, skyCell.y + 0.9); // aim relative to clamped eye
+      P.yaw = Math.atan2(-dx0, -dz0);
+      P.pitch = clamp(Math.atan2(dy, horiz), -1.5, 1.5);
       e.breakingState.tx = null;
-      e.useOn(e.raycastFromCamera());
-      // did the cell above our head fill?
-      const above = w.getBlock(Math.floor(P.x), yAim, Math.floor(P.z));
-      if (above !== B.AIR) { placed = true; break; }
+      const aim = e.raycastFromCamera();
+      if (!aim) continue;
+      // sanity: ray must hit THAT wall cell
+      if (aim.x !== nx || aim.z !== nz) continue;
+      e.useOn(aim);
+      const afterAir = w.getBlock(skyCell.x, skyCell.y, skyCell.z) !== B.AIR;
+      if (afterAir) { placed = true; break; }
     }
     if (placed) break;
   }
-  say(placed ? 'sealed — shaft closed above' : 'seal FAILED (no wall face accepted placement)');
+  say(placed ? 'sealed — shaft closed overhead' : 'seal FAILED (no wall face accepted placement)');
   return { ok: placed, why: placed ? undefined : 'seal failed', log };
 }
 
