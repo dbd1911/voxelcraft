@@ -805,8 +805,18 @@ export class GameAPI {
   place() {
     return new Promise(res => {
       this.act((dt, self) => {
+        const P = this.e.player;
+        // eating works without a block target (consumes held food into hunger)
+        const held = P.held();
+        const it = held && itemType(held.id);
+        if (it && it.food && P.food < 20) {
+          P.sel = P.sel; // ensure selection stable
+          P.eatTimer = 1.2;
+          this.stopAct();
+          return res({ ate: it.name, food: P.food });
+        }
         const hit = this.e.raycastFromCamera();
-        if (hit) { this.e.useOn(hit); this.stopAct(); res(hit ? BLOCKS[hit.id].name : null); }
+        if (hit) { this.e.useOn(hit); this.stopAct(); res({ placedOn: BLOCKS[hit.id].name }); }
         else { this.stopAct(); res(null); }
       });
     });
