@@ -13,7 +13,17 @@ const VIEW_CHUNKS_DEFAULT = 5; // 11x11 blocks of chunks
 export class Engine {
   constructor(canvas, hud, opts = {}) {
     this.canvas = canvas; this.hud = hud; this.on = opts;
-    this.seed = (opts.seed ?? (Math.random() * 2 ** 31)) | 0;
+    // world identity: ?seed= wins, else resume the saved world's seed, else a fresh one.
+    // The seed must NOT live only in the URL — reloads/reconnects must keep the same world.
+    this.seed = null;
+    if (opts.seed !== undefined && opts.seed !== null && Number.isFinite(+opts.seed)) this.seed = (+opts.seed) | 0;
+    if (this.seed === null) {
+      try {
+        const s = JSON.parse(localStorage.getItem('voxelcraft_save') || 'null');
+        if (s && Number.isFinite(s.seed)) this.seed = s.seed | 0;
+      } catch { }
+    }
+    if (this.seed === null) this.seed = (Math.random() * 2 ** 31) | 0;
     this.world = makeWorld(this.seed);
     // mesher samples engine-computed torch light through the world handle
     this.world.torchLightAt = (x, y, z) => this.torchLightAt(x, y, z);
