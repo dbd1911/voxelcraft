@@ -865,6 +865,7 @@ export class GameAPI {
       hp: +P.hp.toFixed(1), maxHp: P.maxHp, food: P.food, inWater: P.inWater, onGround: P.onGround,
       dead: P.dead, deathCause: P.deathCause || null, gameMode: P.gameMode, selected: P.held() ? { id: P.held().id, name: itemType(P.held().id)?.name, count: P.held().count } : null,
       timeOfDay: +((e.time % DAY_LENGTH) / DAY_LENGTH).toFixed(3), day: e.dayNumber(),
+      seed: e.seed,
       daylight: +e.daylight().toFixed(2), biome: biomeAt(Math.floor(P.x), Math.floor(P.z), e.seed),
       target: e._selTarget ? { x: e._selTarget.x, y: e._selTarget.y, z: e._selTarget.z, id: e._selTarget.id, name: BLOCKS[e._selTarget.id].name, face: e._selTarget.face, dist: +e._selTarget.dist.toFixed(2) } : null,
       mobsNearby: e.mobs.filter(m => !m.dead && Math.hypot(m.x - P.x, m.z - P.z) < 32).map(m => ({ type: m.type, hostile: m.def.hostile, hp: m.hp, dist: +Math.hypot(m.x - P.x, m.y - P.y, m.z - P.z).toFixed(1), pos: [+m.x.toFixed(1), +m.y.toFixed(1), +m.z.toFixed(1)] })),
