@@ -16,6 +16,20 @@ export function moveEntity(w, e, dt, opts = {}) {
     for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) if (solidAt(x + 0.5, y + 0.5, z + 0.5)) return true;
     return false;
   };
+  // un-stick: if the entity currently overlaps a solid cell (residual desync from
+  // landing off-center in a hole or an old step-up), nudge toward free space first.
+  // Without this, every jump/step from the overlapped state collides instantly and the
+  // entity silently freezes — the classic "trapped in a 1-block hole" state.
+  if (collides(e.x, e.y, e.z)) {
+    const nudges = [[0.06, 0], [-0.06, 0], [0, 0.06], [0, -0.06], [0.12, 0], [-0.12, 0], [0, 0.12], [0, -0.12]];
+    for (const [nx, nz] of nudges) {
+      if (!collides(e.x + nx, e.y, e.z + nz)) { e.x += nx; e.z += nz; break; }
+    }
+    if (collides(e.x, e.y, e.z)) {
+      if (!collides(e.x, e.y + 0.55, e.z)) e.y += 0.55;
+      else if (e.y > 2 && !collides(e.x, e.y - 0.55, e.z)) e.y -= 0.55;
+    }
+  }
   e.onGround = false;
   const step = (axis, v) => {
     if (v === 0) return;
@@ -36,11 +50,14 @@ export function moveEntity(w, e, dt, opts = {}) {
         }
         e.vel.y = 0;
       } else {
-        // step-up assist for 1-block ledges (auto-jump feel, mobs rely on jump AI anyway)
+        // step-up assist for 1-block ledges (auto-jump feel, mobs rely on jump AI anyway).
+        // Land ON TOP of the obstacle — the old +0.6/-0.6 shuffle left the entity
+        // horizontally advanced while overlapping the wall cells, which then silently
+        // swallowed every subsequent jump (the "can't jump out of a 1-block hole" bug).
+        const origY = e.y;
         e[d] += v;
-        e.y += 0.6;
-        if (collides(e.x, e.y, e.z)) { e[d] -= v; e.y -= 0.6; e.vel[d] = 0; }
-        else e.y -= 0.6;
+        e.y = Math.floor(origY) + 1.001;
+        if (collides(e.x, e.y, e.z) || e.vel.y > 0.6) { e[d] -= v; e.y = origY; e.vel[d] = 0; }
       }
     }
   };

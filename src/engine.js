@@ -241,7 +241,7 @@ export class Engine {
       }
     } else if (!P.dead) {
       if (!input.agentLocked) {
-        P.yaw += input.lookDX * 0.0023; P.pitch += input.lookDY * 0.0023;
+        P.yaw -= input.lookDX * 0.0023; P.pitch -= input.lookDY * 0.0023; // was inverted both axes: mouse-right turned left, mouse-up looked down
         P.pitch = clamp(P.pitch, -Math.PI / 2 + 0.01, Math.PI / 2 - 0.01);
       }
       P.tick(dt, this.world, input, this);
@@ -315,12 +315,44 @@ export class Engine {
 
   _humanInteract(dt, input) {
     const P = this.player;
-    if (input.breaking) this.mineFromLook(dt);
-    else this.breakingState.tx = null;
+    if (input.breaking) {
+      // ONE action button (original Minecraft parity): the same hold that mines also
+      // attacks — bare hands, tool, or weapon. Mob in the crosshair = swing; no mob = mine.
+      if (this._humanSwing()) this.breakingState.tx = null;
+      else this.mineFromLook(dt);
+    } else this.breakingState.tx = null;
     if (input.useEdge) {
       const hit = this.raycastFromCamera();
       if (hit) this.useOn(hit);
     }
+  }
+
+  // Attack branch of the unified click. Same target rules as GameAPI.attack():
+  // nearest living mob within melee reach in front of the look vector. Returns true
+  // when the hold is owned by attacking (even mid-cooldown), false when it should mine.
+  _humanSwing() {
+    const P = this.player;
+    let best = null, bd = 3.2;
+    for (const m of this.mobs) {
+      if (m.dead) continue;
+      const dx = m.x - P.x, dy = m.y + m.height / 2 - (P.y + 1.2), dz = m.z - P.z;
+      const d = Math.hypot(dx, dy, dz);
+      if (d < bd) {
+        const lv = P.lookVec();
+        const dot = (dx / d) * lv.x + (dy / d) * lv.y + (dz / d) * lv.z;
+        if (dot > 0.5) { bd = d; best = m; }
+      }
+    }
+    if (!best) return false;
+    if (P.attackCd <= 0) {
+      const held = P.held();
+      const it = held && itemType(held.id);
+      const dmg = it && it.tool && it.tool.type === 'sword' ? it.dmg : 1;
+      best.hurt(dmg, (best.x - P.x) / (bd + 0.01), (best.z - P.z) / (bd + 0.01), this);
+      P.attackCd = 0.6;
+      this._logEvent('attack', best.type + ' -> ' + Math.max(0, best.hp) + 'hp');
+    }
+    return true;
   }
 
   raycastFromCamera() {
