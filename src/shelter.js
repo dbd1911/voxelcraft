@@ -7,7 +7,7 @@ export function burrow(engine, onProgress = () => {}) {
   const log = [];
   const say = (msg) => { log.push(msg); onProgress(msg); };
 
-  // pick a dig cell within 1 block of the player, never in water, ground not bedrock
+  // pick a dig cell: ALWAYS prefer directly underfoot (you fall in as you dig — the classic move)
   const px = Math.floor(P.x), pz = Math.floor(P.z);
   const candidates = [[0, 0], [0, 1], [1, 0], [-1, 0], [0, -1]];
   let digCell = null;
@@ -15,9 +15,8 @@ export function burrow(engine, onProgress = () => {}) {
     const x = px + dx, z = pz + dz;
     const h = w.heightAt(x, z);
     const ground = w.getBlock(x, h, z);
-    if (ground === B.BEDROCK || h < SEA) continue; // sea-level check
-    // avoid cell directly under the player unless it's the only option (digging under self drops you in — that's fine too, actually)
-    digCell = { x, z, h };
+    if (ground === B.BEDROCK || h < SEA) continue;
+    digCell = { x, z, h, underfoot: dx === 0 && dz === 0 };
     break;
   }
   if (!digCell) return { ok: false, why: 'no valid ground within 1 block', log };
@@ -47,6 +46,21 @@ export function burrow(engine, onProgress = () => {}) {
       P.x = x + 0.5; P.z = z + 0.5; P.vel = { x: 0, y: 0, z: 0 };
       say('re-centered over shaft');
     }
+  }
+
+  // steer onto the shaft (legit movement: velocity walking, same physics as goto)
+  let steer = 0;
+  while ((Math.abs(P.x - (x + 0.5)) > 0.35 || Math.abs(P.z - (z + 0.5)) > 0.35) && steer < 240) {
+    const dx = (x + 0.5) - P.x, dz = (z + 0.5) - P.z;
+    P.vel.x = dx * 6; P.vel.z = dz * 6;
+    if (Math.abs(dx) < 0.6 && Math.abs(dz) < 0.6 && P.onGround) P.vel.y = 7; // hop onto the hole's lip
+    e.frame(1 / 30, AGENT_NEUTRAL());
+    steer++;
+  }
+  P.vel = { x: 0, y: P.vel.y, z: 0 };
+  if (Math.abs(P.x - (x + 0.5)) > 0.5 || Math.abs(P.z - (z + 0.5)) > 0.5) {
+    say('could not reach shaft opening');
+    return { ok: false, why: 'could not step onto shaft', log };
   }
 
   // wait until the player is below surface level
