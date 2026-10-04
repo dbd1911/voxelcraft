@@ -152,9 +152,11 @@ try {
 setInterval(() => {
   if (!document.hidden) return;
   const now = performance.now();
-  const dt = Math.min(0.2, Math.max(0, (now - last) / 1000));
+  // full-speed background catch-up: simulate the WHOLE elapsed second (real-time
+  // resident even when the tab is behind other windows) instead of 1/5 speed.
+  const dt = Math.min(1.0, Math.max(0, (now - last) / 1000));
   if (dt <= 0 || engine.paused) return;
-  let frames = Math.min(4, Math.ceil(dt / 0.05));
+  let frames = Math.min(20, Math.ceil(dt / 0.05));
   for (let i = 0; i < frames; i++) {
     const fdt = Math.min(0.05, dt / frames);
     const snap = { agentLocked: input.agentLocked, forward: 0, strafe: 0, jump: false, sprint: false, sneak: false, breaking: false, useEdge: false, lookDX: 0, lookDY: 0, hotbarNext: 0, hotbarPrev: 0, hotbarSel: -1, openCraft: false, openInv: false, pauseEdge: false, toggleFlyEdge: false };
