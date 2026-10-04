@@ -89,6 +89,8 @@ export class Engine {
         this.player.x = p.x; this.player.y = p.y; this.player.z = p.z; this.player.yaw = p.yaw; this.player.pitch = p.pitch;
         this.player.hp = p.hp; this.player.food = p.food; this.player.inv = p.inv; this.player.sel = p.sel || 0;
         this.player.gameMode = p.gameMode || 'survival';
+        // guard: saves can land mid-death (hp 0 without dead flag) — resurrect safely instead of a 0-hp zombie state
+        if (this.player.hp <= 0) { this.player.hp = 20; this.player.food = 20; this._logEvent('revive', 'restored from save with 0 hp — revived at full health'); }
       }
       this._logEvent('world', 'Loaded saved world (seed ' + this.seed + ')');
     } catch (e) { }

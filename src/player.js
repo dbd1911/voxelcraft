@@ -122,6 +122,8 @@ export class Player {
     this.hurtCd = Math.max(0, this.hurtCd - dt);
     this.attackCd = Math.max(0, this.attackCd - dt);
     this.useCd = Math.max(0, this.useCd - dt);
+    // self-heal inconsistent state (shouldn't happen, but belt-and-braces for long runs)
+    if (!this.dead && this.hp <= 0) { this.dead = true; this.deathCause = this.deathCause || 'mysterious causes'; this.respawnTimer = 3; if (sim) sim.onPlayerDeath(this.deathCause); }
 
     const inWaterBody = isInWater(w, this, 0.4);
     const headWater = isInWater(w, this, EYE);
