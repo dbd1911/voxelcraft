@@ -582,10 +582,11 @@ export class Engine {
     P.hp = 20; P.food = 20; P.dead = false; P.air = 300; P.fallStart = null;
     P.inv = new Array(36).fill(null);
     P.vel = { x: 0, y: 0, z: 0 };
+    P.deathCause = ''; P.hurtCd = 6; // 6s post-respawn grace so spawn campers can't chain-kill
     this.toast('Respawned. Inventory lost!', 'warn');
     this._logEvent('respawn', 'Player respawned');
   }
-  onPlayerDeath(cause) { this._logEvent('death', cause); this.hud.death(true, cause); }
+  onPlayerDeath(cause) { this._logEvent('death', cause); if (!(this.hook && this.hook.agent)) this.hud.death(true, cause); }
   onPlayerHurt() { }
   onEat(name) { this._logEvent('eat', name); }
   onPickup() { }
