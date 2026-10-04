@@ -1,15 +1,15 @@
-// VoxelCraft — AI attach client: connects the resident brain (local server hub) to window.game.
-// Activated ONLY with ?ai in the URL — plain play is completely unaffected.
-// Security model: explicit command whitelist (no eval), no cheat commands, outbound-only connection.
+// VoxelCraft — AI attach client v3.
+// v3 changes:
+//  - Web Locks single-tab guard: only ONE game tab in this browser ever connects (no ping-pong)
+//  - clientVersion: 3 stamped on hello (hub rejects stale versions with a reload request)
+//  - detach reasons handled: oldClient → reload; wrongWorld → reload with canonical seed
+// Security model: explicit command whitelist (no eval), no cheat commands, outbound-only.
+const CLIENT_VERSION = 3;
 
 const isHeadless = /headless/i.test(navigator.userAgent);
-const openQs = new URLSearchParams(location.search).get('attach') === 'free';
 let ws = null;
-let attempts = 0;
-const pending = new Map();
-let cmdSeq = 0;
+let connected = false;
 
-// ---- explicit command surface (mirrors GameAPI; cheats deliberately absent) ----
 const safeCmds = {
   state: () => window.game.state(),
   inventory: () => window.game.inventory(),
@@ -19,7 +19,6 @@ const safeCmds = {
   faceTo: (x, z) => {
     const g = window.game, e = g.e, P = e.player;
     P.yaw = Math.atan2(-(x - P.x), -(z - P.z));
-    // auto-aim: pick the pitch whose ray hits the nearest block (so mine() actually has a target)
     const oldPitch = P.pitch;
     let bestPitch = oldPitch, bestDist = Infinity;
     for (let p = -35; p <= 60; p += 5) {
@@ -51,21 +50,16 @@ const safeCmds = {
 
 const send = (obj) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); };
 
-function connect() {
-  const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-  try { ws = new WebSocket(protocol + '://' + location.host + '/ws'); }
-  catch (e) { reconnect(); return; }
-
+function attachHandlers() {
   ws.onopen = () => {
-    attempts = 0;
-    send({ type: 'hello', game: 'voxelcraft', href: location.href, headless: isHeadless, title: document.title });
+    send({ type: 'hello', game: 'voxelcraft', href: location.href, headless: isHeadless, clientVersion: CLIENT_VERSION, href: location.href });
     if (!isHeadless) window.game.chat('🤖 Resident attaching…');
   };
-
   ws.onmessage = (ev) => {
     let m; try { m = JSON.parse(ev.data); } catch { return; }
     if (m.type === 'attach') {
-      window.game.e.hook.agent = true;   // engine keeps sim ticking in dead state + auto-respawn
+      connected = true;
+      window.game.e.hook.agent = true;
       window.game.e.hook.autoRespawn = true;
       window.game.chat('🤖 Resident online. Living independently now.');
       window.game.e._logEvent('agent', 'resident attached');
@@ -76,40 +70,56 @@ function connect() {
       const reply = (data, error) => send({ type: 'result', id: m.id, ok: !error, data, error: error || undefined });
       if (!fn) return reply(null, 'unknown command: ' + m.cmd);
       try {
-        Promise.resolve(fn(...(m.args || [])))
-          .then(d => reply(d))
-          .catch(e => reply(null, String((e && e.message) || e)));
+        Promise.resolve(fn(...(m.args || []))).then(d => reply(d)).catch(e => reply(null, String((e && e.message) || e)));
       } catch (e) { reply(null, String((e && e.message) || e)); }
     } else if (m.type === 'detach') {
       window.game.e.hook.agent = false;
+      if (m.reason === 'oldClient') { location.reload(); return; }
       if (m.reason === 'wrongWorld' && Number.isFinite(m.canonicalSeed)) {
         const u = new URL(location.href);
-        const cur = u.searchParams.get('seed');
-        if (String(m.canonicalSeed) !== cur) {
+        if (String(m.canonicalSeed) !== u.searchParams.get('seed')) {
           u.searchParams.set('seed', String(m.canonicalSeed));
           location.replace(u.pathname + '?' + u.searchParams.toString());
           return;
         }
       }
-      window.game.chat('🤖 Resident detached. You have control.');
+      if (m.reason === 'superseded') {
+        // another tab took over: stop connecting (Web Locks will arbitrate who's live)
+        try { ws.close(); } catch { }
+        return;
+      }
+      window.game.chat('🤖 Resident detached.');
     }
   };
-
-  ws.onclose = () => { reconnect(); };
+  ws.onclose = () => {
+    connected = false;
+    if (ws && ws.readyState !== 1 && !ws.__doNotRetry) setTimeout(pollAndConnect, Math.min(20000, 2500));
+  };
   ws.onerror = () => { try { ws.close(); } catch { } };
 }
 
-function reconnect() {
-  attempts++;
-  const delay = Math.min(30000, 1500 * attempts);
-  setTimeout(connect, delay);
+function pollAndConnect() {
+  // only connect when this tab owns the browser-wide slot lock
+  if (!navigator.locks) { openSocket(); return; } // old browser: best-effort (hub arbiter still guards)
+  navigator.locks.request('voxelcraft_resident_slot', { ifAvailable: true }, async (lock) => {
+    if (!lock) return; // another tab holds it — stay idle; retry later
+    openSocket();
+    await new Promise(res => { pollAndConnect._release = res; }); // hold lock while connected
+  });
 }
 
-connect();
+function openSocket() {
+  const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+  try { ws = new WebSocket(protocol + '://' + location.host + '/ws'); }
+  catch { setTimeout(pollAndConnect, 4000); return; }
+  ws.__doNotRetry = false;
+  attachHandlers();
+  // wait for close → release the lock so another tab can take over
+  const origClose = ws.onclose;
+  ws.addEventListener('close', () => { if (pollAndConnect._release) { pollAndConnect._release(); pollAndConnect._release = null; } });
+}
 
-// ---- outbound telemetry (2s cadence — not game-tick) ----
-setInterval(() => {
-  if (ws && ws.readyState === 1) {
-    try { send({ type: 'state', data: window.game.state(), events: window.game.recentEvents(12), errs: (window.__errs || []).slice(-3) }); } catch { }
-  }
-}, 2000);
+// periodic watch: if another tab died, this tab can pick the slot up (when lock free) —
+// pollAndConnect is re-invoked on a slow cadence when not connected
+setInterval(() => { if (!connected) pollAndConnect(); }, 8000);
+pollAndConnect();

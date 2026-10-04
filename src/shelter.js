@@ -1,6 +1,10 @@
 // VoxelCraft — shelter skill: emergency burrow (dig down, drop in, seal the sky).
 // Physics-legitimate: no teleports, no free blocks — every block is dug or placed by the player.
-import { SEA, B } from './blocks.js';
+import { SEA, B, BLOCKS } from './blocks.js';
+
+// readable block names for log lines
+const BLOCKS_NAME = {};
+for (let i = 0; i < BLOCKS.length; i++) if (BLOCKS[i] && BLOCKS[i].name) BLOCKS_NAME[i] = BLOCKS[i].name;
 
 export function burrow(engine, onProgress = () => {}) {
   const e = engine, P = e.player, w = e.world;
@@ -68,37 +72,45 @@ export function burrow(engine, onProgress = () => {}) {
   while (P.y > h - DEPTH + 1.4 && waited < 240) { e.frame(1 / 30, AGENT_NEUTRAL()); waited++; }
   if (P.y > h - DEPTH + 1.4) return { ok: false, why: 'player never descended', log };
 
-  // seal: find a placeable block in inventory (dirt/cobble/sand/anything solid), look straight up, place on the ceiling face above
-  const sealCandidates = [2 /*DIRT*/, 4 /*COBBLE*/, 5 /*SAND*/, 16 /*GRAVEL*/, 9 /*PLANKS*/, 3 /*STONE*/, 7 /*LOG*/];
-  let sealId = 0, sealSlot = -1;
+  // ---- seal the shaft: deterministic placement against a side wall ----
+  const sealCandidates = [B.DIRT, B.COBBLE, B.SAND, B.GRAVEL, B.PLANKS, B.STONE, B.LOG];
+  let sealSlot = -1, sealId = 0;
   for (let i = 0; i < 36 && sealSlot < 0; i++) {
     const s = P.inv[i];
     if (s && sealCandidates.includes(s.id)) { sealId = s.id; sealSlot = i; }
   }
-  if (sealSlot < 0) {
-    // nothing placeable — dig one extra block sideways for material is overkill; just report
-    return { ok: false, why: 'nothing to seal with (no dirt/cobble/sand in inventory)', log };
-  }
+  if (sealSlot < 0) return { ok: false, why: 'nothing to seal with (no dirt/cobble/sand/planks in inventory)', log };
   P.sel = sealSlot;
-  say('sealing with ' + sealId + ' from slot ' + sealSlot);
+  say('sealing with ' + (BLOCKS_NAME[sealId] || sealId) + ' (slot ' + sealSlot + ')');
 
-  // aim straight up: pitch +88
-  P.pitch = 88 * Math.PI / 180;
-  const hit = e.raycastFromCamera(); // should hit the ceiling of the shaft (face under the block above)
-  if (!hit) return { ok: false, why: 'no ceiling face found to seal against', log };
-  // placing against a ceiling: useOn places at hit.face — for face [0,1,0] that's the cell ABOVE the ceiling block → wrong (that's the sky).
-  // In a 3-deep shaft the "ceiling" from inside is the underside of the top block (y=h). Its downward face means place target = that ceiling cell itself is impossible;
-  // correct approach: look at the side wall top cell and place on its top face → lands at y=h (the sky cell above our head).
-  P.pitch = 55 * Math.PI / 180; // gaze at upper side wall
-  const wall = e.raycastFromCamera();
-  if (!wall) return { ok: false, why: 'no side wall to place against', log };
-  e.breakingState.tx = null;
-  e.useOn(wall); // places at wall.face — if that's the sky cell directly above, great
-  const nowAboveHead = w.getBlock(Math.floor(P.x), Math.ceil(P.y + 1.7), Math.floor(P.z));
-  const sealed = nowAboveHead !== 0;
-  say(sealed ? 'sealed — headspace block present' : 'seal not confirmed: ' + nowAboveHead);
-
-  return { ok: sealed, why: sealed ? undefined : 'seal unconfirmed', log };
+  // face the shaft's side wall just above head-height, place onto the face pointing INTO the shaft.
+  // While inside the shaft (P.y < h): look horizontally at a wall cell -> its face toward us is a
+  // shaft-facing surface; useOn() places at hit.face cell = directly overhead if we aim at y=P.y+2
+  const yAim = Math.floor(P.y) + 2; // cell just above head inside a 3-deep shaft
+  const dirs = ['z', 'x'];
+  let placed = false;
+  for (const axis of dirs) {
+    for (const sign of [1, -1]) {
+      // wall cell adjacent in this direction at our head level
+      const wx = axis === 'x' ? Math.floor(P.x) + sign : Math.floor(P.x);
+      const wz = axis === 'z' ? Math.floor(P.z) + sign : Math.floor(P.z);
+      const wallId = w.getBlock(wx, yAim - 1, wz);
+      if (!(BLOCKS[wallId] && BLOCKS[wallId].solid)) continue;
+      // aim: horizontal toward that wall, tilted slightly down so the ray meets its inner face
+      P.yaw = axis === 'x'
+        ? (sign > 0 ? -Math.PI / 2 : Math.PI / 2)
+        : (sign > 0 ? Math.PI : 0);
+      P.pitch = -8 * Math.PI / 180;
+      e.breakingState.tx = null;
+      e.useOn(e.raycastFromCamera());
+      // did the cell above our head fill?
+      const above = w.getBlock(Math.floor(P.x), yAim, Math.floor(P.z));
+      if (above !== B.AIR) { placed = true; break; }
+    }
+    if (placed) break;
+  }
+  say(placed ? 'sealed — shaft closed above' : 'seal FAILED (no wall face accepted placement)');
+  return { ok: placed, why: placed ? undefined : 'seal failed', log };
 }
 
 // neutral agent input object (mirrors GameAPI._ai() shape)
