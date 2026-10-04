@@ -124,3 +124,42 @@ function openSocket() {
 // pollAndConnect is re-invoked on a slow cadence when not connected
 setInterval(() => { if (!connected) pollAndConnect(); }, 8000);
 pollAndConnect();
+
+// ===================== SPECTATOR MODE (?watch) =====================
+// Follows the RESIDENT's live position from the hub (which owns the ?ai tab's world).
+// This tab hosts no simulation of its own — it is a pure camera on the real sim.
+if (new URLSearchParams(location.search).has('watch')) {
+  const hubURL = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
+  const ws2 = new WebSocket(hubURL);
+  let ghost = null;
+  ws2.onopen = () => {
+    console.log('[spectator] connected to hub');
+    setInterval(() => { try { ws2.send(JSON.stringify({ type: 'spectate' })); } catch {} }, 500);
+  };
+  ws2.onmessage = (ev) => {
+    let m; try { m = JSON.parse(ev.data); } catch { return; }
+    if (m.type === 'spectate' && m.data) {
+      lastBot = m.data;
+    }
+  };
+  let lastBot = null;
+  // ghost camera: reuse the engine's renderer but drive camera manually each frame
+  const startGhost = () => {
+    const e = window.engine; if (!e) { setTimeout(startGhost, 300); return; }
+    console.log('[spectator] ghost cam engaged');
+    const origFrame = e.frame.bind(e);
+    e.frame = (dt, snap) => {
+      if (lastBot && lastBot.pos) {
+        // orbit the bot slowly and look at it
+        const t = performance.now() / 4000;
+        const r = 7;
+        const cx = lastBot.pos[0] + Math.cos(t) * r, cz = lastBot.pos[2] + Math.sin(t) * r;
+        const ey = lastBot.pos[1] + 4.5;
+        e.camera.position.set(cx, ey, cz);
+        e.camera.lookAt(lastBot.pos[0], lastBot.pos[1] + 1.5, lastBot.pos[2]);
+      }
+      return origFrame(dt, { agentLocked: true, forward: 0, strafe: 0, jump: false, sprint: false, sneak: false, breaking: false, useEdge: false, lookDX: 0, lookDY: 0, hotbarNext: 0, hotbarPrev: 0, hotbarSel: -1, openCraft: false, openInv: false, pauseEdge: false, toggleFlyEdge: false });
+    };
+  };
+  startGhost();
+}
