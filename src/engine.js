@@ -6,6 +6,7 @@ import { buildAtlas, crackTextures, blockTile } from './textures.js';
 import { ChunkMesher, getMaterials, setFog, dayUniform } from './mesher.js';
 import { Player, raycastBlock, EYE, moveEntity, isInWater } from './player.js';
 import { Mob, ItemDrop, MOB_DEFS } from './entities.js';
+import { burrow } from './shelter.js';
 import { clamp } from './noise.js';
 
 const VIEW_CHUNKS_DEFAULT = 5; // 11x11 blocks of chunks
@@ -1092,6 +1093,13 @@ export class GameAPI {
     const blA = BLOCKS[this.e.world.getBlock(aheadX, Math.floor(P.y + 0.2), aheadZ)];
     a.jump = (blA && blA.solid && !blA.cross && !blA.liquid) || P.inWater;
     return d;
+  }
+
+  // shelter skill: dig down 3, drop in, seal the sky (emergency overnight protection)
+  burrow() {
+    const r = burrow(this.e, (msg) => this.e._logEvent('shelter', msg));
+    this.e._logEvent('shelter', 'result: ' + (r.ok ? 'sealed' : r.why));
+    return r;
   }
 
   // ---- meta ----

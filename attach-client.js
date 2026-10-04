@@ -44,6 +44,7 @@ function start() {
     smelt: (itemName) => window.game.smelt(itemName),
     collectFurnace: () => window.game.collectFurnace(),
     chat: (m) => { window.game.chat(String(m).slice(0, 140)); return 'ok'; },
+    burrow: () => window.game.burrow(),
     screenshot: (width) => window.game.screenshotDataURL(width || 480),
     respawn: () => { window.game.respawn(); return 'ok'; },
     save: () => { window.game.save(); return 'ok'; },
