@@ -332,8 +332,8 @@ export class Engine {
 
   mineFromLook(dt) {
     const hit = this._selTarget || this.raycastFromCamera();
-    if (!hit) { this.breakingState.tx = null; return; }
-    this.mineBlock(hit.x, hit.y, hit.z, dt, true);
+    if (!hit) { this.breakingState.tx = null; return false; }
+    return this.mineBlock(hit.x, hit.y, hit.z, dt, true);
   }
 
   // shared by human + agent: returns progress done
@@ -788,10 +788,11 @@ export class GameAPI {
     const a = this._ai();
     a.breaking = true;
     return new Promise(res => {
-      let acc = 0; // sim time, not wall time (tabs can be throttled)
+      let acc = 0, broke = 0; // sim time (tab-throttle-proof) + real blocks broken
       this.act((dt) => {
         acc += dt;
-        if (acc >= durationSec) { a.breaking = false; this.stopAct(); res(true); }
+        if (this.e.mineFromLook(dt)) broke++;
+        if (acc >= durationSec) { a.breaking = false; this.stopAct(); res({ broke, seconds: durationSec }); }
       });
     });
   }

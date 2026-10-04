@@ -17,7 +17,20 @@ function start() {
     recentEvents: (n) => window.game.recentEvents(n || 30),
     nearestBlock: (kind) => window.game.nearestBlock(kind),
     blocksAround: (r) => window.game.blocksAround(r || 6),
-    faceTo: (x, z) => { window.game.faceTo(x, z); return 'ok'; },
+    faceTo: (x, z) => {
+      const g = window.game, e = g.e, P = e.player;
+      P.yaw = Math.atan2(-(x - P.x), -(z - P.z));
+      // auto-aim: pick the pitch whose ray hits the nearest block (so mine() actually has a target)
+      const oldPitch = P.pitch;
+      let bestPitch = oldPitch, bestDist = Infinity;
+      for (let p = -35; p <= 60; p += 5) {
+        P.pitch = p * Math.PI / 180;
+        const hit = e.raycastFromCamera();
+        if (hit && hit.dist < bestDist) { bestDist = hit.dist; bestPitch = P.pitch; }
+      }
+      if (bestDist < Infinity) P.pitch = bestPitch; else P.pitch = oldPitch;
+      return 'ok';
+    },
     lookAbs: (yawDeg, pitchDeg) => { window.game.lookAbs(yawDeg, pitchDeg); return 'ok'; },
     jump: () => { const p = window.game.e.player; if (!p.dead) p.vel.y = 8.6; return 'ok'; },
     stopMove: () => { window.game.stopMove(); return 'ok'; },
