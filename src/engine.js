@@ -292,7 +292,7 @@ export class Engine {
     this.dropSprites(dt);
 
     this.renderer.render(this.scene, this.camera);
-    this._saveT += (this._saveT || 0) + dt; if (this._saveT > 12) { this._saveT = 0; this._save(); }
+    this._saveT += (this._saveT || 0) + dt; if (this._saveT > 12) { this._saveT = 0; if (!this.player.dead) this._save(); }
     if (this.hook.action) { try { this.hook.action(dt); } catch (e) { this.toast('Agent error: ' + e.message, 'warn'); this.hook.action = null; } }
   }
 
