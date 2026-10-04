@@ -603,7 +603,7 @@ export class Engine {
         c = [wx, h + 2.2, wz];
       }
       const danger = this.mobs.filter(m => !m.dead && m.def.hostile).reduce((s, m) => Math.min(s, Math.hypot(m.x - c[0], m.z - c[2])), Infinity);
-      if (danger < bestDanger) { bestDanger = danger; best = c; }
+      if (bestDanger < 0 || danger > bestDanger) { bestDanger = danger; best = c; } // MAXIMIZE distance to nearest hostile
     }
     P.x = best[0]; P.y = best[1]; P.z = best[2];
     P.hp = 20; P.food = 20; P.dead = false; P.air = 300; P.fallStart = null;
