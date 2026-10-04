@@ -223,8 +223,15 @@ export class Engine {
     this.time = (this.time + dt) % DAY_LENGTH;
 
     const P = this.player;
-    // apply human/agent input to player
-    if (!P.dead) {
+    // ONE tick owner per frame: when the agent hook drives, it owns player+interaction
+    // (executed at frame end). Otherwise the human input path runs — never both.
+    const agentDrives = !!(this.hook && this.hook.action);
+    if (agentDrives) {
+      if (P.dead && this.hook.autoRespawn !== false) {
+        P.respawnTimer -= dt;
+        if (P.respawnTimer <= 0) this.respawnPlayer();
+      }
+    } else if (!P.dead) {
       if (!input.agentLocked) {
         P.yaw += input.lookDX * 0.0023; P.pitch += input.lookDY * 0.0023;
         P.pitch = clamp(P.pitch, -Math.PI / 2 + 0.01, Math.PI / 2 - 0.01);
@@ -764,7 +771,6 @@ export class GameAPI {
       this.e.player.yaw += (inp.lookDX || 0) * dt; this.e.player.pitch = clamp(this.e.player.pitch + (inp.lookDY || 0) * dt, -1.55, 1.55);
       Object.assign(inp, { lookDX: 0, lookDY: 0 });
       this.e.player.tick(dt, this.e.world, inp, this.e);
-      if (inp.breaking) this.e.mineFromLook(dt); else this.e.breakingState.tx = null;
       if (useEdge) { const hit = this.e.raycastFromCamera(); if (hit) this.e.useOn(hit); }
       if (inp.toggleFlyEdge) { this.e.player.flying = !this.e.player.flying; this.e.player.vel.y = 0; inp.toggleFlyEdge = false; }
       fn && fn(dt, this);
