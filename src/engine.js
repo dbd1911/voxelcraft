@@ -863,7 +863,7 @@ export class GameAPI {
     // kind: 'wood'|'stone'|'ore'|'water'|name-fragment; BFS over loaded chunks (radius 24)
     const P = this.player;
     const targets = new Set();
-    if (kind === 'wood') { targets.add(B.LOG); targets.add(B.LEAVES); }
+    if (kind === 'wood' || kind === 'log') { targets.add(B.LOG); }
     else if (kind === 'stone') { targets.add(B.STONE); targets.add(B.COBBLE); }
     else if (kind === 'ore') { [B.COAL_ORE, B.IRON_ORE, B.GOLD_ORE, B.DIAMOND_ORE].forEach(x => targets.add(x)); }
     else if (kind === 'water') targets.add(B.WATER);
