@@ -49,6 +49,8 @@ function start() {
   ws.onmessage = (ev) => {
     let m; try { m = JSON.parse(ev.data); } catch { return; }
     if (m.type === 'attach') {
+      window.game.e.hook.agent = true;   // engine keeps sim ticking in dead state + auto-respawn
+      window.game.e.hook.autoRespawn = true;
       window.game.chat('🤖 Resident online. Living independently now.');
       window.game.e._logEvent('agent', 'resident attached');
     } else if (m.type === 'poke') {
@@ -63,6 +65,7 @@ function start() {
           .catch(e => reply(null, String((e && e.message) || e)));
       } catch (e) { reply(null, String((e && e.message) || e)); }
     } else if (m.type === 'detach') {
+      window.game.e.hook.agent = false;
       window.game.chat('🤖 Resident detached. You have control.');
     }
   };
