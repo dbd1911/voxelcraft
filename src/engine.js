@@ -588,13 +588,28 @@ export class Engine {
 
   // respawn & death
   respawnPlayer() {
-    const sp = findSpawn(this.world);
     const P = this.player;
-    P.x = sp[0]; P.y = sp[1]; P.z = sp[2];
+    // pick the least-dangerous respawn point among candidates (fair spawn — no camper chains)
+    const base = findSpawn(this.world);
+    let best = base, bestDanger = Infinity;
+    for (let i = 0; i < 14; i++) {
+      let c = base;
+      if (i > 0) {
+        const ang = (i / 14) * Math.PI * 2;
+        const rr = 40 + (i % 3) * 20;
+        const wx = base[0] + Math.cos(ang) * rr, wz = base[2] + Math.sin(ang) * rr;
+        const h = this.world.heightAt(Math.floor(wx), Math.floor(wz));
+        if (h <= SEA) continue;
+        c = [wx, h + 2.2, wz];
+      }
+      const danger = this.mobs.filter(m => !m.dead && m.def.hostile).reduce((s, m) => Math.min(s, Math.hypot(m.x - c[0], m.z - c[2])), Infinity);
+      if (danger < bestDanger) { bestDanger = danger; best = c; }
+    }
+    P.x = best[0]; P.y = best[1]; P.z = best[2];
     P.hp = 20; P.food = 20; P.dead = false; P.air = 300; P.fallStart = null;
     P.inv = new Array(36).fill(null);
     P.vel = { x: 0, y: 0, z: 0 };
-    P.deathCause = ''; P.hurtCd = 6; // 6s post-respawn grace so spawn campers can't chain-kill
+    P.deathCause = ''; P.hurtCd = bestDanger < 24 ? 12 : 6; // longer grace in hot zones
     this.toast('Respawned. Inventory lost!', 'warn');
     this._logEvent('respawn', 'Player respawned');
   }
