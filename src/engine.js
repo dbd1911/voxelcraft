@@ -1021,8 +1021,10 @@ export class GameAPI {
       const below = BLOCKS[w.getBlock(bx, by - 1, bz)];
       return below && below.solid; // floor
     };
-    const h0 = w.heightAt(Math.floor(P.x), Math.floor(P.z));
-    const start = [Math.floor(P.x), Math.max(1, Math.min(CHUNK_Y - 2, h0 + 1)), Math.floor(P.z)];
+    // start BFS from the player's ACTUAL feet cell — using heightAt() can seed the search in
+    // open air above a sealed burrow (roof), producing an unexecutable walk-in-air path.
+    const h0 = Math.floor(P.y); // feet level
+    const start = [Math.floor(P.x), Math.max(1, Math.min(CHUNK_Y - 2, h0)), Math.floor(P.z)];
     const key = (x, y, z) => x + ',' + y + ',' + z;
     const seen = new Map();
     const qs = [[start, null]];
@@ -1033,8 +1035,13 @@ export class GameAPI {
       const qsn = qs.splice(0, 1)[0];
       const [cx, cy, cz] = qsn[0];
       expansions++;
-      if (Math.abs(cx - tx) <= 0 && Math.abs(cz - tz) <= 0) { goal = qsn; break; }
-      if (Math.hypot(cx - tx, cz - tz) < 1.2) { goal = qsn; break; }
+      const exact = Math.abs(cx - tx) <= 0 && Math.abs(cz - tz) <= 0;
+      // adjacent-to-goal: if the goal cell itself is solid (tree trunk, block pillar), accept any
+      // cell immediately next to it — a human walks up TO the tree, not INTO the trunk.
+      // NEVER match the start cell itself (that reported "arrived" with zero movement).
+      const isStart = (cx === start[0] && cy === start[1] && cz === start[2]);
+      const adjacent = Math.abs(cx - tx) <= 1 && Math.abs(cz - tz) <= 1 && Math.abs(cy - h0) <= 2 && !isStart;
+      if (exact || adjacent) { goal = qsn; break; }
       const nbrs = [];
       for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
         for (const ny of [cy, cy - 1, cy + 1, cy - 2, cy + 2]) {
@@ -1156,6 +1163,40 @@ export class GameAPI {
     const r = burrow(this.e, (msg) => this.e._logEvent('shelter', msg));
     this.e._logEvent('shelter', 'result: ' + (r.ok ? 'sealed' : r.why));
     return r;
+  }
+
+  // climb out of a sealed space: dig the block straight up 3, place under self, repeat; used when goto finds no path
+  async climbOut(maxSec = 20) {
+    return await new Promise(res => {
+      const e = this.e, P = e.player;
+      let acc = 0;
+      this.act((dt) => {
+        acc += dt;
+        // find the FIRST solid block straight up and dig it (repeat as headroom opens)
+        const hx = Math.floor(P.x), hz = Math.floor(P.z);
+        let digY = null;
+        for (let dy = 2; dy <= 8; dy++) {  // start above head
+          const y = Math.floor(P.y) + dy;
+          const id = e.world.getBlock(hx, y, hz);
+          if (id !== 0 && id !== 1) { digY = y; break; }
+        }
+        const roofHere = digY !== null;
+        if (roofHere) e.mineBlock(hx, digY, hz, dt, true); // keep digging the ceiling above us
+        const a = this._ai();
+        a.jump = true;         // hop as headroom opens
+        a.forward = roofHere ? 0 : 1;  // only advance when this column's ceiling is clear
+        if (acc > maxSec) { this.stopAct(); res({ ok: false, why: 'timeout, pos ' + [P.x|0, P.y|0, P.z|0] }); }
+        else if (!roofHere) {
+          // success = open sky: no solid block anywhere above my head in this column
+          let clear = true;
+          for (let dy = 3; dy <= 12; dy++) {
+            const id = e.world.getBlock(hx, Math.floor(P.y) + dy, hz);
+            if (id !== 0 && id !== 1) { clear = false; break; }
+          }
+          if (clear) { this.stopAct(); res({ ok: true, elapsed: +acc.toFixed(1) }); }
+        }
+      });
+    });
   }
 
   // ---- meta ----

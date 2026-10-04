@@ -44,6 +44,7 @@ const safeCmds = {
   burrow: () => window.game.burrow(),
   chat: (m) => { window.game.chat(String(m).slice(0, 140)); return 'ok'; },
   screenshot: (width) => window.game.screenshotDataURL(width || 480),
+  climbOut: (maxSec) => window.game.climbOut(maxSec || 20),
   respawn: () => { window.game.respawn(); return 'ok'; },
   save: () => { window.game.save(); return 'ok'; },
 };
