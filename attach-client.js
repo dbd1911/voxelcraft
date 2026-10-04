@@ -79,6 +79,16 @@ function start() {
       } catch (e) { reply(null, String((e && e.message) || e)); }
     } else if (m.type === 'detach') {
       window.game.e.hook.agent = false;
+      if (m.reason === 'wrongWorld' && Number.isFinite(m.canonicalSeed)) {
+        // self-heal: this tab is playing the wrong world — reload into the canonical one
+        const u = new URL(location.href);
+        const cur = u.searchParams.get('seed');
+        if (String(m.canonicalSeed) !== cur) {
+          u.searchParams.set('seed', String(m.canonicalSeed));
+          location.replace(u.pathname + '?' + u.searchParams.toString());
+          return;
+        }
+      }
       window.game.chat('🤖 Resident detached. You have control.');
     }
   };

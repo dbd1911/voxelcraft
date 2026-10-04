@@ -18,12 +18,19 @@ export class Engine {
     this.seed = null;
     if (opts.seed !== undefined && opts.seed !== null && Number.isFinite(+opts.seed)) this.seed = (+opts.seed) | 0;
     if (this.seed === null) {
+      try { const s = localStorage.getItem('hermes_seed_cache'); if (s && Number.isFinite(+s)) this.seed = (+s) | 0; } catch {}
+    }
+    if (this.seed === null) {
       try {
         const s = JSON.parse(localStorage.getItem('voxelcraft_save') || 'null');
         if (s && Number.isFinite(s.seed)) this.seed = s.seed | 0;
       } catch { }
     }
-    if (this.seed === null) this.seed = (Math.random() * 2 ** 31) | 0;
+    if (this.seed === null) {
+      this.seed = (Math.random() * 2 ** 31) | 0;
+      // persist seed as soon as a world is created so any reload resumes the same world
+      try { localStorage.setItem('hermes_seed_cache', String(this.seed)); } catch {}
+    }
     this.world = makeWorld(this.seed);
     // mesher samples engine-computed torch light through the world handle
     this.world.torchLightAt = (x, y, z) => this.torchLightAt(x, y, z);
