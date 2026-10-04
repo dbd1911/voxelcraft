@@ -28,6 +28,9 @@ const input = new InputSystem();
 window.engine = engine;
 window.game = engine.api();   // AI agent attaches here (Phase 2)
 
+// AI-resident attach client: only with ?ai in the URL (plain play untouched)
+if (new URLSearchParams(location.search).has('ai')) import('./attach-client.js');
+
 // ---------- pointer lock ----------
 const uiRoot = document.getElementById('ui-root');
 let locked = false;
