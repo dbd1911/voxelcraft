@@ -601,32 +601,39 @@ export class Engine {
   // ---------------- agent API (GameAPI defined below) ----------------
   api() { return new GameAPI(this); }
 
-  // respawn & death
+  // respawn & death — GAME MECHANIC (not the AI's job): spawn into a genuinely safe spot,
+  // at least SAFE_RADIUS blocks from every hostile, never the same place twice in a row.
   respawnPlayer() {
     const P = this.player;
-    // pick the least-dangerous respawn point among candidates (fair spawn — no camper chains)
+    const SAFE_RADIUS = 32;
     const base = findSpawn(this.world);
-    let best = base, bestDanger = Infinity;
-    for (let i = 0; i < 14; i++) {
-      let c = base;
-      if (i > 0) {
-        const ang = (i / 14) * Math.PI * 2;
-        const rr = 40 + (i % 3) * 20;
-        const wx = base[0] + Math.cos(ang) * rr, wz = base[2] + Math.sin(ang) * rr;
-        const h = this.world.heightAt(Math.floor(wx), Math.floor(wz));
-        if (h <= SEA) continue;
-        c = [wx, h + 2.2, wz];
-      }
-      const danger = this.mobs.filter(m => !m.dead && m.def.hostile).reduce((s, m) => Math.min(s, Math.hypot(m.x - c[0], m.z - c[2])), Infinity);
-      if (bestDanger < 0 || danger > bestDanger) { bestDanger = danger; best = c; } // MAXIMIZE distance to nearest hostile
+    let best = null, bestDanger = -1;
+    // expanding rings: 40 → 200 blocks out; also consider the base spawn itself
+    const rings = [40, 60, 80, 100, 130, 160, 200];
+    const cands = [base];
+    for (const r of rings) for (let k = 0; k < 16; k++) {
+      const ang = (k / 16) * Math.PI * 2 + r * 0.113;
+      const wx = base[0] + Math.cos(ang) * r, wz = base[2] + Math.sin(ang) * r;
+      const h = this.world.heightAt(Math.floor(wx), Math.floor(wz));
+      if (h <= SEA) continue;
+      cands.push([wx, h + 2.2, wz]);
     }
+    for (const c of cands) {
+      // never the same respawn spot as last time
+      if (this._lastRespawnKey === (Math.floor(c[0]) + ',' + Math.floor(c[2]))) continue;
+      const danger = this.mobs.filter(m => !m.dead && m.def.hostile).reduce((s, m) => Math.min(s, Math.hypot(m.x - c[0], m.z - c[2])), Infinity);
+      if (danger > bestDanger) { bestDanger = danger; best = c; }
+      if (danger >= SAFE_RADIUS && best && best !== base) break; // good enough, stop scanning
+    }
+    if (!best) best = base;
+    this._lastRespawnKey = Math.floor(best[0]) + ',' + Math.floor(best[2]);
     P.x = best[0]; P.y = best[1]; P.z = best[2];
     P.hp = 20; P.food = 20; P.dead = false; P.air = 300; P.fallStart = null;
     P.inv = new Array(36).fill(null);
     P.vel = { x: 0, y: 0, z: 0 };
-    P.deathCause = ''; P.hurtCd = bestDanger < 24 ? 12 : 6; // longer grace in hot zones
-    this.toast('Respawned. Inventory lost!', 'warn');
-    this._logEvent('respawn', 'Player respawned');
+    P.deathCause = ''; P.hurtCd = 8; // post-respawn grace
+    this.toast('Respawned in a safer area. Inventory lost!', 'warn');
+    this._logEvent('respawn', 'Player respawned at ' + P.x.toFixed(0) + ',' + P.z.toFixed(0) + ' (nearest hostile ' + (bestDanger === Infinity ? 'unknown' : bestDanger.toFixed(0)) + ' blocks)');
   }
   onPlayerDeath(cause) { this._logEvent('death', cause); if (!(this.hook && this.hook.agent)) this.hud.death(true, cause); }
   onPlayerHurt() { }

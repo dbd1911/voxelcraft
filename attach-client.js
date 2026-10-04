@@ -2,9 +2,11 @@
 // Activated ONLY with ?ai in the URL — plain play is completely unaffected.
 // Security model: explicit command whitelist (no eval), no cheat commands, outbound-only connection.
 
-function start() {
+  const start = () => {
+  // state: {agentLocked:true, forward, strafe, jump, sprint, sneak, breaking, useEdge, lookDX, lookDY, toggleFlyEdge}
+  const isHeadless = /headless/i.test(navigator.userAgent);
   const qs = new URLSearchParams(location.search);
-  const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+  const openQs = (qs.get('attach') || '') === 'free'; // headless tabs may force-attach only with &attach=free
   let ws;
   let attempts = 0;
   const pending = new Map(); // cmdId -> {resolve, timer}
@@ -56,8 +58,10 @@ function start() {
 
   ws.onopen = () => {
     attempts = 0;
-    send({ type: 'hello', game: 'voxelcraft', href: location.href });
-    window.game.chat('🤖 Resident attaching…');
+    send({ type: 'hello', game: 'voxelcraft', href: location.href, headless: isHeadless, title: document.title });
+    // headless tabs: don't fight the user's real browser for the slot — only claim when explicitly freed
+    if (isHeadless && !openQs) { /* keep connection open in observer mode; hub decides */ }
+    else if (!isHeadless) send({ type: 'claim', realUser: true, title: document.title });
   };
 
   ws.onmessage = (ev) => {
