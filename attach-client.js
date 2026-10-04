@@ -54,7 +54,7 @@ function start() {
       window.game.chat('🤖 Resident online. Living independently now.');
       window.game.e._logEvent('agent', 'resident attached');
     } else if (m.type === 'poke') {
-      try { send({ type: 'state', data: window.game.state(), events: window.game.recentEvents(12) }); } catch { }
+      try { send({ type: 'state', data: window.game.state(), events: window.game.recentEvents(12), errs: (window.__errs || []).slice(-3) }); } catch { }
     } else if (m.type === 'cmd') {
       const fn = safeCmds[m.cmd];
       const reply = (data, error) => send({ type: 'result', id: m.id, ok: !error, data, error: error || undefined });
@@ -80,7 +80,7 @@ function start() {
   // ---- outbound telemetry (2s cadence — not game-tick) ----
   setInterval(() => {
     if (ws.readyState === 1) {
-      try { send({ type: 'state', data: window.game.state(), events: window.game.recentEvents(12) }); } catch { }
+      try { send({ type: 'state', data: window.game.state(), events: window.game.recentEvents(12), errs: (window.__errs || []).slice(-3) }); } catch { }
     }
   }, 2000);
   // drop stale pending commands
