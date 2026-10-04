@@ -1,5 +1,6 @@
 // VoxelCraft — shelter skill: emergency burrow (dig down, drop in, seal the sky).
 // Physics-legitimate: no teleports, no free blocks — every block is dug or placed by the player.
+import { SEA, B } from './blocks.js';
 
 export function burrow(engine, onProgress = () => {}) {
   const e = engine, P = e.player, w = e.world;
@@ -14,7 +15,7 @@ export function burrow(engine, onProgress = () => {}) {
     const x = px + dx, z = pz + dz;
     const h = w.heightAt(x, z);
     const ground = w.getBlock(x, h, z);
-    if (ground === 10 /*BEDROCK*/ || h < SEA) continue; // sea-level check
+    if (ground === B.BEDROCK || h < SEA) continue; // sea-level check
     // avoid cell directly under the player unless it's the only option (digging under self drops you in — that's fine too, actually)
     digCell = { x, z, h };
     break;
