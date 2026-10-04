@@ -850,7 +850,7 @@ export class GameAPI {
     return {
       pos: [+P.x.toFixed(2), +P.y.toFixed(2), +P.z.toFixed(2)], yawDeg: +(P.yaw * 180 / Math.PI).toFixed(1), pitchDeg: +(P.pitch * 180 / Math.PI).toFixed(1),
       hp: +P.hp.toFixed(1), maxHp: P.maxHp, food: P.food, inWater: P.inWater, onGround: P.onGround,
-      dead: P.dead, gameMode: P.gameMode, selected: P.held() ? { id: P.held().id, name: itemType(P.held().id)?.name, count: P.held().count } : null,
+      dead: P.dead, deathCause: P.deathCause || null, gameMode: P.gameMode, selected: P.held() ? { id: P.held().id, name: itemType(P.held().id)?.name, count: P.held().count } : null,
       timeOfDay: +((e.time % DAY_LENGTH) / DAY_LENGTH).toFixed(3), day: e.dayNumber(),
       daylight: +e.daylight().toFixed(2), biome: biomeAt(Math.floor(P.x), Math.floor(P.z), e.seed),
       target: e._selTarget ? { x: e._selTarget.x, y: e._selTarget.y, z: e._selTarget.z, id: e._selTarget.id, name: BLOCKS[e._selTarget.id].name, face: e._selTarget.face, dist: +e._selTarget.dist.toFixed(2) } : null,
