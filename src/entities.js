@@ -147,7 +147,7 @@ export class ItemDrop {
     if (this.age > 300) { this.gone = true; return; }
     const p = sim.player;
     const d = Math.hypot(p.x - this.x, p.y + 0.9 - this.y, p.z - this.z);
-    if (!p.dead && this.age > 0.6 && d < 2.4) { // magnet (generous reach — drops often spawn elevated, e.g. tree trunks)
+    if (!p.dead && this.age > 0.6 && d < 3.5) { // magnet (generous reach — drops often spawn elevated, e.g. tree trunks)
       const s = 6 * dt;
       this.vel.x += (p.x - this.x) / d * s; this.vel.z += (p.z - this.z) / d * s;
       this.vel.y += (p.y + 0.6 - this.y) / d * s;
@@ -157,7 +157,7 @@ export class ItemDrop {
     this.vel.x *= 0.94; this.vel.z *= 0.94;
     if (isInWater(w, this, 0.1)) this.vel.y = Math.min(this.vel.y + 30 * dt, 1.5);
     moveEntity(w, this, dt, {});
-    if (!p.dead && this.age > 0.6 && d < 1.5) {
+    if (!p.dead && this.age > 0.6 && d < 2.2) {
       const left = p.addItem(this.item.id, this.item.count);
       if (left < this.item.count) {
         this.item.count = left;

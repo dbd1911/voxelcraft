@@ -856,7 +856,7 @@ export class GameAPI {
       daylight: +e.daylight().toFixed(2), biome: biomeAt(Math.floor(P.x), Math.floor(P.z), e.seed),
       target: e._selTarget ? { x: e._selTarget.x, y: e._selTarget.y, z: e._selTarget.z, id: e._selTarget.id, name: BLOCKS[e._selTarget.id].name, face: e._selTarget.face, dist: +e._selTarget.dist.toFixed(2) } : null,
       mobsNearby: e.mobs.filter(m => !m.dead && Math.hypot(m.x - P.x, m.z - P.z) < 32).map(m => ({ type: m.type, hostile: m.def.hostile, hp: m.hp, dist: +Math.hypot(m.x - P.x, m.y - P.y, m.z - P.z).toFixed(1), pos: [+m.x.toFixed(1), +m.y.toFixed(1), +m.z.toFixed(1)] })),
-      dropsNearby: e.drops.slice(0, 12).map(d => ({ id: d.item.id, name: (itemType(d.item.id) || {}).name, count: d.item.count, dist: +Math.hypot(d.x - P.x, d.y - P.y, d.z - P.z).toFixed(1) })),
+      dropsNearby: e.drops.slice(0, 12).map(d => ({ id: d.item.id, name: (itemType(d.item.id) || {}).name, count: d.item.count, pos: [+d.x.toFixed(1), +d.y.toFixed(1), +d.z.toFixed(1)], dist: +Math.hypot(d.x - P.x, d.y - P.y, d.z - P.z).toFixed(1) })),
       breakProgress: e.breakingState.tx !== null ? +(e.breakingState.prog / Math.max(0.01, e.breakingState.needed)).toFixed(2) : 0,
     };
   }
