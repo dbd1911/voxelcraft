@@ -818,22 +818,39 @@ export class GameAPI {
     });
   }
   place() {
-    return new Promise(res => {
-      this.act((dt, self) => {
+    return new Promise(async res => {
+      // helper: one placement attempt at current aim
+      const attempt = () => {
         const P = this.e.player;
-        // eating works without a block target (consumes held food into hunger)
         const held = P.held();
         const it = held && itemType(held.id);
         if (it && it.food && P.food < 20) {
-          P.sel = P.sel; // ensure selection stable
           P.eatTimer = 1.2;
-          this.stopAct();
-          return res({ ate: it.name, food: P.food });
+          setTimeout(() => res({ ate: it.name, food: P.food }), 0);
+          return { ate: true };
         }
         const hit = this.e.raycastFromCamera();
-        if (hit) { this.e.useOn(hit); this.stopAct(); res({ placedOn: BLOCKS[hit.id].name }); }
-        else { this.stopAct(); res(null); }
-      });
+        if (hit) { this.e.useOn(hit); return { placedOn: BLOCKS[hit.id].name }; }
+        return null;
+      };
+      let r = attempt();
+      if (r) { if (!r.ate) this.stopAct(); else this.stopAct(); res(r); return; }
+      // miss → glance down (like a human) and retry once
+      const P = this.e.player, oldPitch = P.pitch;
+      let bestHit = null, bestDist = Infinity;
+      for (let p = 20; p <= 85; p += 5) {
+        P.pitch = p * Math.PI / 180;
+        const h = this.e.raycastFromCamera();
+        if (h && h.dist < bestDist) { bestDist = h.dist; bestHit = { p, h }; }
+      }
+      if (bestHit) {
+        P.pitch = bestHit.p;
+        this.e.breakingState.tx = null;
+        r = attempt();
+        P.pitch = r ? P.pitch : oldPitch;
+        res(r || null);
+      } else { P.pitch = oldPitch; res(null); }
+      this.stopAct();
     });
   }
   useBlock() {
